@@ -30,6 +30,7 @@
 .auth-tab.active{background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
 .auth-form{display:flex;flex-direction:column;gap:11px}
 .auth-form label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:11px;font-weight:750}
+.auth-form label[hidden]{display:none}
 .auth-form input{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:11px 12px;outline:0}
 .auth-form input:focus{border-color:#8dbabd;box-shadow:0 0 0 3px var(--accent-soft)}
 .auth-submit{width:100%;margin-top:2px}

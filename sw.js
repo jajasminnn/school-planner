@@ -1,5 +1,5 @@
-const CACHE='school-planner-v4-auth-fix';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./firebase-config.js','./manifest.json','./icon.svg'];
+const CACHE='school-planner-v5-login-page';
+const ASSETS=['./','./index.html','./login.html','./styles.css','./app.js','./login.js','./firebase-config.js','./manifest.json','./icon.svg'];
 const NETWORK_FIRST=['./index.html','./firebase-config.js'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
