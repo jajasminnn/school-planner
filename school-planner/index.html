@@ -10,7 +10,7 @@
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
     <div class="brand"><div class="brand-mark">SP</div><div class="brand-text"><b>School Planner</b><span>My study space</span></div><button class="icon-btn side-collapse" id="sideCollapse" aria-label="Collapse sidebar">‹</button></div>
-    <div class="workspace"><span class="avatar">J</span><div><b>My Workspace</b><small>Personal planner</small></div><button class="more-btn" aria-label="Workspace options">•••</button></div>
+    <div class="workspace"><span class="avatar" id="userAvatar">J</span><div><b id="workspaceName">My Workspace</b><small id="workspaceEmail">Personal planner</small></div><button class="more-btn" id="authButton" aria-label="Sign in with Google" title="Sign in with Google">↪</button></div>
     <nav class="nav" aria-label="Main navigation">
       <button class="nav-item active" data-view="dashboard"><span>⌂</span><b>Dashboard</b></button>
       <button class="nav-item" data-view="calendar"><span>▦</span><b>Calendar</b></button>
@@ -41,6 +41,10 @@
 </div>
 <div id="modalRoot"></div>
 <div class="toast" id="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
 </body>

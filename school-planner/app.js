@@ -11,9 +11,121 @@ const parse=s=>new Date(s+'T00:00:00');
 const today=()=>iso(new Date());
 const fmtDate=s=>s?parse(s).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'No date';
 const fmtLong=s=>s?parse(s).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}):'';
-function save(){localStorage.setItem(KEY,JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings})); $('#saveIndicator').innerHTML='<i></i><span>Saved just now</span>'; clearTimeout(save.t); save.t=setTimeout(()=>$('#saveIndicator').innerHTML='<i></i><span>Saved on this device</span>',1500)}
+let cloudUser=null;
+let cloudLoaded=false;
+let cloudSaveTimer=null;
+const firebaseServices=window.schoolPlannerFirebase||{};
+const auth=firebaseServices.auth||null;
+const db=firebaseServices.db||null;
+const cloudRef=()=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc('main'):null;
+const plannerPayload=()=>({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+function setSaveStatus(text){const e=$('#saveIndicator');if(e)e.innerHTML=`<i></i><span>${esc(text)}</span>`}
+function save(){
+  const payload={calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings};
+  localStorage.setItem(KEY,JSON.stringify(payload));
+  setSaveStatus(cloudUser&&cloudLoaded?'Saving…':'Saved on this device');
+  clearTimeout(save.t);
+  save.t=setTimeout(()=>setSaveStatus(cloudUser&&cloudLoaded?'Saved to cloud':'Saved on this device'),900);
+  if(cloudUser&&cloudLoaded&&db){
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer=setTimeout(()=>saveToCloud(),500);
+  }
+}
+async function saveToCloud(){
+  const ref=cloudRef();
+  if(!ref||!cloudLoaded)return;
+  try{
+    await ref.set(plannerPayload());
+    setSaveStatus('Saved to cloud');
+  }catch(err){
+    console.error('Cloud save failed:',err);
+    setSaveStatus('Saved on this device');
+    toast('Cloud save failed — your local copy is safe.');
+  }
+}
+function loadLocal(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x){Object.assign(state,x);state.calendar??={events:[]};state.tasks??={tasks:[],meta:{}};state.notes??={notes:[],subjects:{}};state.settings??={}}else migrate()}catch{migrate()} if(!Array.isArray(state.settings.subjects))state.settings.subjects=[]; if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`})); syncSubjects();}
+async function loadCloudForUser(user){
+  cloudUser=user; cloudLoaded=false;
+  updateAuthUI(user);
+  setSaveStatus('Loading cloud data…');
+  try{
+    const snap=await cloudRef().get();
+    if(snap.exists){
+      const x=snap.data()||{};
+      if(x.calendar)state.calendar=x.calendar;
+      if(x.tasks)state.tasks=x.tasks;
+      if(x.notes)state.notes=x.notes;
+      if(x.settings)state.settings=x.settings;
+      if(!Array.isArray(state.settings.subjects))state.settings.subjects=[];
+      if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}));
+      syncSubjects();
+      localStorage.setItem(KEY,JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}));
+      setSaveStatus('Synced from cloud');
+    }else{
+      syncSubjects();
+      cloudLoaded=true;
+      await saveToCloud();
+      setSaveStatus('Saved to cloud');
+    }
+    cloudLoaded=true;
+    render();
+  }catch(err){
+    console.error('Cloud load failed:',err);
+    cloudLoaded=false;
+    setSaveStatus('Saved on this device');
+    toast('Firebase is connected, but Firestore access needs its security rules.');
+    render();
+  }
+}
+function updateAuthUI(user){
+  const btn=$('#authButton'), name=$('#workspaceName'), email=$('#workspaceEmail'), avatar=$('#userAvatar');
+  if(!btn)return;
+  if(user){
+    const display=user.displayName||user.email?.split('@')[0]||'My Workspace';
+    name.textContent=display;
+    email.textContent=user.email||'Google account';
+    avatar.textContent=(display.trim()[0]||'J').toUpperCase();
+    btn.textContent='↪';
+    btn.title='Sign out';
+    btn.setAttribute('aria-label','Sign out');
+  }else{
+    name.textContent='My Workspace';
+    email.textContent='Sign in to sync';
+    avatar.textContent='J';
+    btn.textContent='↗';
+    btn.title='Sign in with Google';
+    btn.setAttribute('aria-label','Sign in with Google');
+  }
+}
+async function handleAuthClick(){
+  if(!auth){toast('Firebase could not be initialized.');return;}
+  if(auth.currentUser){
+    try{await auth.signOut();cloudUser=null;cloudLoaded=false;setSaveStatus('Saved on this device');updateAuthUI(null);toast('Signed out.');}
+    catch(err){console.error(err);toast('Could not sign out.');}
+    return;
+  }
+  try{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await auth.signInWithPopup(provider);
+  }catch(err){
+    console.error('Google sign-in failed:',err);
+    if(err?.code==='auth/popup-blocked')toast('Your browser blocked the sign-in popup. Allow popups and try again.');
+    else if(err?.code==='auth/unauthorized-domain')toast('Add this website domain to Firebase Authorized Domains.');
+    else toast('Google sign-in could not be completed.');
+  }
+}
+function setupFirebaseAuth(){
+  updateAuthUI(auth?.currentUser||null);
+  $('#authButton')?.addEventListener('click',handleAuthClick);
+  if(!auth){setSaveStatus('Firebase unavailable');return;}
+  auth.onAuthStateChanged(user=>{
+    if(user)loadCloudForUser(user);
+    else{cloudUser=null;cloudLoaded=false;updateAuthUI(null);setSaveStatus('Saved on this device');}
+  });
+}
 function migrate(){let old={}; try{for(const [k,v] of Object.entries(OLD)){const x=JSON.parse(localStorage.getItem(v)||'null'); if(x)old[k]=x}}catch{}; if(old.calendar)state.calendar=old.calendar; if(old.tasks){state.tasks=old.tasks;state.settings.subjects=(old.tasks.meta?.subjects||[]).map(x=>({id:x.id,name:x.name||''}))}; if(old.notes){state.notes={notes:old.notes.notes||[],subjects:{}}; (old.notes.folders||[]).forEach(f=>{state.notes.subjects[f.id]={id:f.id,name:f.name,body:''}})}; if(!state.settings.subjects?.length){state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}))}}
-function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x){Object.assign(state,x);state.calendar??={events:[]};state.tasks??={tasks:[],meta:{}};state.notes??={notes:[],subjects:{}};state.settings??={}}else migrate()}catch{migrate()} if(!Array.isArray(state.settings.subjects))state.settings.subjects=[]; if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`})); syncSubjects();}
+// Firebase-aware startup uses loadLocal() first, then replaces it with the signed-in user's cloud copy when available.
 function syncSubjects(){state.tasks.meta=state.tasks.meta||{};state.tasks.meta.subjects=state.settings.subjects.map(s=>({id:s.id,name:s.name}));state.notes.subjects=state.notes.subjects||{};state.settings.subjects.forEach(s=>{if(!state.notes.subjects[s.id])state.notes.subjects[s.id]={id:s.id,name:s.name,body:'',notes:[]};state.notes.subjects[s.id].name=s.name});}
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function openModal(title,body,actions=''){const root=$('#modalRoot');root.innerHTML=`<div class="modal-backdrop" id="backdrop"><div class="modal"><div class="modal-head"><h2>${title}</h2><button class="icon-btn" data-close>×</button></div><div class="modal-body">${body}</div>${actions?`<div class="modal-foot">${actions}</div>`:''}</div></div>`;$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))root.innerHTML=''})}
@@ -158,5 +270,5 @@ function quickSearch(){openModal('Search your planner','<input class="input" id=
 document.addEventListener('click',e=>{const sheet=e.target.closest('[data-task-sheet]');if(sheet){$('#view-tasks').dataset.sheet=sheet.dataset.taskSheet;renderTasks();return}const detail=e.target.closest('[data-row-details]');if(detail){const d=$('#details-'+detail.dataset.rowDetails);if(d)d.classList.toggle('show');return}const go=e.target.closest('[data-go]');if(go)return setView(go.dataset.go);const sub=e.target.closest('[data-subject]');if(sub){state.selectedSubject=sub.dataset.subject;state.selectedNote=null;setView('subjects');renderNotebook();return}if(e.target.closest('[data-calendar-task]')){setView('tasks');return}if(e.target.closest('[data-add-event]'))return eventModal();const day=e.target.closest('[data-day]');if(day&&!e.target.closest('[data-event]'))return eventModal(null,day.dataset.day);const ev=e.target.closest('[data-event]');if(ev){const x=state.calendar.events.find(a=>a.id===ev.dataset.event);if(x)eventModal(x);return}const cs=e.target.closest('[data-cal]');if(cs){state.calMode=cs.dataset.cal;renderCalendar();return}if(e.target.closest('[data-calstep]')){const n=+e.target.closest('[data-calstep]').dataset.calstep;if(state.calMode==='week')state.calCursor.setDate(state.calCursor.getDate()+n*7);else if(state.calMode==='agenda')state.calCursor.setDate(state.calCursor.getDate()+n*30);else state.calCursor=new Date(state.calCursor.getFullYear(),state.calCursor.getMonth()+n,1);renderCalendar();return}if(e.target.closest('[data-caltoday]')){state.calCursor=new Date();renderCalendar();return}if(e.target.closest('[data-add-task]'))return taskModal();const edit=e.target.closest('[data-edit-task]');if(edit){const t=state.tasks.tasks.find(x=>x.id===edit.dataset.editTask);if(t)taskModal(t);return}const done=e.target.closest('[data-taskdone]');if(done){const t=state.tasks.tasks.find(x=>x.id===done.dataset.taskdone);if(t){t.status=done.checked?'Done':'Not Started';save();render()};return}if(e.target.closest('[data-clear-done]')){state.tasks.tasks=state.tasks.tasks.filter(t=>t.status!=='Done');save();render();toast('Completed tasks cleared');return}if(e.target.closest('[data-manage-subjects]'))return setView('settings');if(e.target.closest('[data-back-subjects]')){state.selectedSubject=null;setView('subjects');return}if(e.target.closest('[data-new-lesson]'))return newLesson();const lesson=e.target.closest('[data-lesson]');if(lesson){state.selectedNote=lesson.dataset.lesson;renderNotebook();return}if(e.target.closest('[data-delete-lesson]')){const s=state.notes.subjects[state.selectedSubject];s.notes=s.notes.filter(n=>n.id!==state.selectedNote);state.selectedNote=s.notes[0]?.id||null;save();renderNotebook();return}if(e.target.closest('[data-new-general]'))return generalModal();const gen=e.target.closest('[data-general]');if(gen){const n=(state.notes.general||[]).find(x=>x.id===gen.dataset.general);if(n)generalModal(n);return}if(e.target.closest('[data-save-subjects]')){ $$('[data-subedit]').forEach(i=>{const s=state.settings.subjects.find(x=>x.id===i.dataset.subedit);if(s)s.name=i.value.trim()||s.name});syncSubjects();save();render();toast('Subjects updated');return}const th=e.target.closest('[data-theme]');if(th){state.settings.theme=th.dataset.theme;document.body.classList.toggle('dark',th.dataset.theme==='dark'||(th.dataset.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches));save();return}if(e.target.closest('[data-backup]'))return downloadBackup()});
 document.addEventListener('input',e=>{if(e.target.id==='calendarSearch'){const r=$('#view-calendar');r.dataset.q=e.target.value;renderCalendar();return}if(e.target.id==='taskSearch'){const r=$('#view-tasks');r.dataset.q=e.target.value;renderTasks()}if(e.target.id==='lessonTitle'||e.target.id==='lessonBody'){const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);if(n){n.title=$('#lessonTitle').value;n.body=$('#lessonBody').value;n.updated=Date.now();save();}}});
 document.addEventListener('change',e=>{if(e.target.id==='calendarShowTasks'){state.calendar.showTasks=e.target.checked;save();renderCalendar();return}const rs=e.target.closest('[data-row-status]');if(rs){const t=state.tasks.tasks.find(x=>x.id===rs.dataset.rowStatus);if(t){t.status=rs.value;save();renderTasks();}return}if(e.target.id==='taskStatus'){const r=$('#view-tasks');r.dataset.status=e.target.value;renderTasks()}if(e.target.id==='taskPriority'){const r=$('#view-tasks');r.dataset.pri=e.target.value;renderTasks()}if(e.target.id==='restoreFile'&&e.target.files[0]){const fr=new FileReader();fr.onload=()=>{try{const x=JSON.parse(fr.result);Object.assign(state,x);syncSubjects();save();render();toast('Backup restored')}catch{toast('That backup file is not valid.')}};fr.readAsText(e.target.files[0])}});
-load();wire();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);setView('dashboard');
+loadLocal();wire();setupFirebaseAuth();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);setView('dashboard');
 })();
