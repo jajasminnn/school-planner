@@ -1,83 +1,61 @@
-# School Planner
+# School Planner — Modern V2 + Firebase Cloud Sync
 
-One website with a **left panel** to switch between:
+This version is based directly on **School Planner Modern V2 Calendar Fixed**. The existing planner UI and features are preserved while adding Firebase Authentication and Cloud Firestore sync.
 
-- **🗓️ Calendar**: month, week and agenda views, repeating events, search, task deadlines, and 12 colors plus a custom color picker.
-- **✅ Tasks**: a task tracker. You type in your own subjects (none are pre-filled).
-- **📝 Notes**: create folders in the left panel and keep notes inside them.
+## Existing planner features preserved
+- Dashboard
+- Calendar: Month, Week and Agenda views
+- Add/edit/delete calendar events
+- Recurring events, including Every other week (14 days)
+- Event colors, start/end times and notes
+- Task deadlines shown on the calendar
+- Task tracker with subject sheets
+- Eight subject spaces with lesson notebooks
+- General notes
+- Search
+- Collapsible desktop sidebar + mobile sidebar
+- Light/dark/system theme
+- Backup/restore
+- Local autosave
+- PWA support
 
-It is only HTML, CSS and JavaScript, so it can be hosted free on **GitHub Pages**. There is no server.
+## Firebase connection
+The browser loads the Firebase Web SDK and initializes it from `firebase-config.js`.
 
-It works in two ways:
+Firebase Authentication uses Google Sign-In. After the user signs in, the planner loads or creates this Firestore document:
 
-| | **Local mode** (default) | **Cloud mode** (optional) |
-|---|---|---|
-| Login | none | email + password |
-| Where data is saved | in the browser you use | in your free Firebase database |
-| Same data on other devices | no (use **Backup / Restore**) | yes, just log in |
-| Setup | none | about 10 minutes (steps below) |
+`users/{USER_UID}/planner/main`
 
----
+The document contains the planner's calendar, tasks, notes and settings as one synchronized data set.
 
-## Part 1: Publish on GitHub Pages
+## IMPORTANT: Firestore Security Rules
 
-1. Make a free account at https://github.com and click **New repository**. Name it e.g. `school-planner`, keep it **Public**, and create it.
-2. Click **uploading an existing file** and drag in **all the files from this folder** (`index.html`, `styles.css`, the `.js` files, `login.html`, ...). They must be at the top level, not inside another folder. Click **Commit changes**.
-3. Go to **Settings → Pages**. Under **Build and deployment**, set **Source** to **Deploy from a branch**, choose **main** and **/ (root)**, then **Save**.
-4. After a minute or two your site is at `https://YOUR-USERNAME.github.io/school-planner/`.
+The file `firestore.rules` contains the intended rules. In Firebase Console, open:
 
-In local mode you can start using it right away. To move your data to another device, click **Backup** in the left panel, then **Restore** on the other device.
+**Firestore Database → Rules**
 
----
+Replace the rules there with the contents of `firestore.rules`, then click **Publish**.
 
-## Part 2 (optional): Login and cloud saving with Firebase
+These rules allow an authenticated user to read/write only their own planner document and deny other access.
 
-Firebase is a free Google service (the free "Spark" plan is plenty).
+## Google Sign-In
 
-1. Go to https://console.firebase.google.com, click **Add project**, and finish the wizard.
-2. **Turn on login:** **Build → Authentication → Get started → Sign-in method → Email/Password**, switch it on, save.
-3. **Create the database:** **Build → Firestore Database → Create database**, pick a location, choose **Production mode**.
-4. **Add the security rules** (this keeps each person's data private): in Firestore open the **Rules** tab, replace everything with the contents of `firestore.rules`, and click **Publish**.
-5. **Allow your website address:** **Authentication → Settings → Authorized domains → Add domain** and add `YOUR-USERNAME.github.io`.
-6. **Get your config:** the gear icon → **Project settings**. Under **Your apps** click the **`</>` (Web)** button, register an app, and copy the `firebaseConfig` values.
-7. In your GitHub repository open `firebase-config.js` (pencil icon), replace `window.FIREBASE_CONFIG = null;` with:
+Google Sign-In must be enabled under:
 
-   ```js
-   window.FIREBASE_CONFIG = {
-     apiKey: "PASTE-HERE",
-     authDomain: "PASTE-HERE",
-     projectId: "PASTE-HERE",
-     appId: "PASTE-HERE"
-   };
-   ```
-   and click **Commit changes**. After a minute the site asks people to log in or create an account.
+**Firebase Console → Authentication → Sign-in method → Google**
 
-The `apiKey` is not a secret. The rules in step 4 are what protect each person's data.
+When the website is published on GitHub Pages, add the GitHub Pages hostname under Firebase Authentication's **Authorized domains** if Firebase asks you to do so.
 
-Notes for cloud mode:
-- "Forgot password?" sends a reset email automatically.
-- Anyone who opens your site can create an account, but each account only sees its own data.
-- Each of Calendar, Tasks and Notes is saved as one Firestore document (limit about 1 MB each). Notes is the one most likely to grow: if it gets too big the left panel shows "Too much data to save".
-- Data saved earlier in local mode stays in that browser. Use **Backup** first, or the **Import** buttons on the Calendar and Tasks pages, to bring it across.
+## GitHub Pages
 
----
+Upload the website files directly to the repository root. Do not put the files inside another folder if the repository is being used as the Pages root.
 
-## Files
+The Firebase CDN scripts require an internet connection, so the first cloud-sync test should be done from the published HTTPS website (or another local web server), not by double-clicking `index.html` as a `file://` page.
 
-```
-index.html          the website: left panel + Calendar, Tasks and Notes
-styles.css          all styles
-shared.js           saving, login, dialogs
-app.js              left panel and page switching
-calendar.js         calendar
-tasks.js            task tracker
-notes.js            notes and folders
-login.html          login / create account (only used in cloud mode)
-firebase-config.js  paste your Firebase config here (optional)
-firestore.rules     security rules to paste into Firebase
-```
+## Data behavior
 
-## Try it on your own computer
-
-Open a terminal in this folder and run `python3 -m http.server 8000`, then visit http://localhost:8000.
-(Double-clicking `index.html` may not work with login, because browsers restrict `file://` pages.)
+- Before Google Sign-In, the planner continues to work with local browser storage.
+- After Google Sign-In, Firestore becomes the cloud copy for that Google account.
+- If that account has no cloud planner yet, the current local planner data is uploaded as its first cloud copy.
+- Existing cloud data is loaded back into the planner when that account signs in.
+- Local storage remains as a fallback/backup on the device.

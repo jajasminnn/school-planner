@@ -1,198 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>School Planner</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#367e83"><meta name="description" content="A modern personal school planner for schedules, tasks and subject notebooks">
+<link rel="manifest" href="manifest.json"><title>School Planner</title>
 <link rel="stylesheet" href="styles.css">
 </head>
-<body class="app">
-
-<aside class="side" id="side" aria-label="Main menu">
-  <div class="sbrand">📚 School Planner</div>
-  <nav class="snav">
-    <a href="#calendar" data-v="calendar">🗓️ <span>Calendar</span></a>
-    <a href="#tasks" data-v="tasks">✅ <span>Tasks</span><em class="badge" id="taskBadge" hidden></em></a>
-    <a href="#notes" data-v="notes">📝 <span>Notes</span></a>
-    <div class="folders" id="folderList"></div>
-    <button class="snewf" id="newFolder">+ New folder</button>
-  </nav>
-  <div class="sfoot">
-    <div class="sstatus" id="saveStatus" aria-live="polite"></div>
-    <div class="swho" id="who"></div>
-    <div class="srow">
-      <button id="bkBtn" title="Download a backup of your calendar, tasks and notes">Backup</button>
-      <button id="rsBtn" title="Load a backup file">Restore</button>
-      <input type="file" id="rsFile" accept=".json,application/json" hidden>
-      <button id="themeBtn" aria-label="Toggle dark mode">🌓</button>
-      <button id="logoutBtn" hidden>Log out</button>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="brand-mark">SP</div><div class="brand-text"><b>School Planner</b><span>My study space</span></div><button class="icon-btn side-collapse" id="sideCollapse" aria-label="Collapse sidebar">‹</button></div>
+    <div class="workspace"><span class="avatar" id="userAvatar">J</span><div><b id="workspaceName">My Workspace</b><small id="workspaceEmail">Personal planner</small></div><button class="more-btn" id="authButton" aria-label="Sign in with Google" title="Sign in with Google">↪</button></div>
+    <nav class="nav" aria-label="Main navigation">
+      <button class="nav-item active" data-view="dashboard"><span>⌂</span><b>Dashboard</b></button>
+      <button class="nav-item" data-view="calendar"><span>▦</span><b>Calendar</b></button>
+      <button class="nav-item" data-view="tasks"><span>✓</span><b>Tasks</b><em id="overdueBadge" hidden>0</em></button>
+      <button class="nav-item" data-view="subjects"><span>▤</span><b>My Subjects</b></button>
+      <button class="nav-item" data-view="notes"><span>✎</span><b>Notes</b></button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="nav-item" data-view="settings"><span>⚙</span><b>Settings</b></button>
+      <div class="save-indicator" id="saveIndicator"><i></i><span>Saved on this device</span></div>
     </div>
-  </div>
-</aside>
-<div id="scrim"></div>
-
-<div class="main">
-  <header class="mobilebar">
-    <button id="menuBtn" aria-label="Open menu">☰</button>
-    <b id="mobTitle">Calendar</b>
-  </header>
-
-  <div class="loadmsg" id="loading">Loading…</div>
-  <div class="card loadmsg" id="loadErr" hidden></div>
-
-  <section class="view" id="view-calendar" hidden>
-  <div class="wrap">
-  <div class="bar">
-    <h1 id="c-title"></h1>
-    <div class="seg" id="c-views">
-      <button data-v="month">Month</button><button data-v="week">Week</button><button data-v="agenda">Agenda</button>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <main class="main">
+    <header class="topbar">
+      <div class="top-left"><button class="icon-btn mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button><div><span class="eyebrow" id="eyebrow">Overview</span><h1 id="pageTitle">Dashboard</h1></div></div>
+      <div class="top-actions"><button class="search-btn" id="globalSearchBtn">⌕ <span>Search</span><kbd>Ctrl K</kbd></button><button class="icon-btn" id="themeToggle" title="Toggle dark mode">☾</button><button class="primary small" id="quickAdd">+ Quick add</button></div>
+    </header>
+    <div class="content" id="content">
+      <section class="view active" id="view-dashboard"></section>
+      <section class="view" id="view-calendar"></section>
+      <section class="view" id="view-tasks"></section>
+      <section class="view" id="view-subjects"></section>
+      <section class="view" id="view-notes"></section>
+      <section class="view" id="view-settings"></section>
     </div>
-    <div class="grp">
-      <button id="c-prev" aria-label="Previous">‹</button><button id="c-today">Today</button><button id="c-next" aria-label="Next">›</button>
-    </div>
-    <input type="search" id="c-q" placeholder="Search events">
-    <label class="chk"><input type="checkbox" id="c-showTasks"> Show task deadlines</label>
-    <button id="c-import">Import</button>
-    <button class="primary" id="c-addEv">+ Add event</button>
-  </div>
-  <div class="card cal" id="c-cal"></div>
+  </main>
 </div>
-  </section>
-
-  <section class="view" id="view-tasks" hidden>
-  <div class="wrap">
-  <div class="bar"><h1>Tasks</h1></div>
-  <div class="card callout" id="t-noSubj" hidden>
-    <div><b>Add your subjects first</b><p>Type the subjects you are taking, then choose one for each task.</p></div>
-    <button class="primary" id="t-noSubjBtn">+ Add my subjects</button>
-  </div>
-  <div class="top">
-    <div class="card profile">
-      <label>Name<input id="t-pName" placeholder="Your full name"></label>
-      <label>Year<input id="t-pYear" placeholder="e.g. 3rd Year"></label>
-      <label>Section<input id="t-pSection" placeholder="e.g. BSIT 3A"></label>
-    </div>
-    <div class="card" id="t-stats"></div>
-  </div>
-
-  <div class="chips" id="t-chips"></div>
-
-  <div class="card subjpanel" id="t-subjPanel" hidden>
-    <h2>Edit subjects</h2>
-    <div id="t-subjList"></div>
-    <div class="btns">
-      <button id="t-subjAdd">+ Add subject</button>
-      <button id="t-subjDone" class="primary">Done</button>
-    </div>
-  </div>
-
-  <div class="tools">
-    <button class="primary" id="t-add">+ Add task</button>
-    <input type="search" id="t-q" placeholder="Search tasks, notes...">
-    <select id="t-fStatus"><option value="">All statuses</option><option>Not Started</option><option>In Progress</option><option>Done</option></select>
-    <select id="t-fPri"><option value="">All priorities</option><option>High</option><option>Medium</option><option>Low</option></select>
-    <select id="t-fDue">
-      <option value="">Any due date</option>
-      <option value="overdue">Overdue</option>
-      <option value="week">Due in 7 days</option>
-      <option value="none">No due date</option>
-    </select>
-    <button id="t-sortDue">Sort by due date</button>
-    <span class="sp"></span>
-    <button id="t-restoreCols" hidden>Restore columns</button>
-    <button id="t-delSel" class="danger" disabled>Delete selected</button>
-    <button id="t-clearDone">Clear completed</button>
-    <button id="t-exportCsv">Export CSV</button>
-    <button id="t-import">Import</button>
-  </div>
-
-  <div class="card sheet">
-    <table id="t-tbl">
-      <colgroup id="t-cg"></colgroup>
-      <thead><tr id="t-hr"></tr></thead>
-      <tbody id="t-body"></tbody>
-    </table>
-    <div class="empty" id="t-empty" hidden></div>
-  </div>
-  <p class="hint">Everything saves automatically. Tick the boxes to delete several tasks at once, click a column title to sort, and use ✕ on a column title to remove it.</p>
-</div>
-  </section>
-
-  <section class="view" id="view-notes" hidden>
-  <div class="wrap notes">
-    <div class="bar">
-      <h1 id="n-title">Notes</h1>
-      <button id="n-rename" hidden>Rename folder</button>
-      <button class="danger" id="n-delFolder" hidden>Delete folder</button>
-      <button class="primary" id="n-addNote" hidden>+ New note</button>
-    </div>
-    <div class="card nempty" id="n-empty" hidden>
-      <h2>Keep your notes in folders</h2>
-      <p>Make a folder for each subject or topic, then add notes inside it.</p>
-      <button class="primary" id="n-emptyBtn">+ Create your first folder</button>
-    </div>
-    <div class="card nlayout" id="n-layout" hidden>
-      <div class="nside">
-        <input type="search" id="n-q" placeholder="Search this folder" aria-label="Search notes in this folder">
-        <div class="nlist" id="n-list"></div>
-      </div>
-      <div class="nedit">
-        <div class="nnone" id="n-pick"></div>
-        <div class="neditor" id="n-editor" hidden>
-          <input id="n-noteTitle" placeholder="Note title" aria-label="Note title">
-          <div class="nmeta" id="n-meta"></div>
-          <textarea id="n-noteBody" placeholder="Start typing your notes…" aria-label="Note text"></textarea>
-          <div class="nactions">
-            <label>Folder <select id="n-move"></select></label>
-            <span class="grow"></span>
-            <button class="danger" id="n-delNote">Delete note</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  </section>
-</div>
-
-<dialog id="c-evDlg">
-  <div class="dlg">
-    <h2 id="c-dlgTitle">Add event</h2>
-    <div class="list" id="c-dayList" hidden></div>
-    <label>Title<input id="c-fTitle" placeholder="e.g. Study group"></label>
-    <div class="row">
-      <label>Date<input id="c-fDate" type="date"></label>
-      <label>Repeat
-        <select id="c-fRepeat">
-          <option value="none">Does not repeat</option>
-          <option value="daily">Every day</option>
-          <option value="weekly">Every week</option>
-          <option value="monthly">Every month</option>
-          <option value="yearly">Every year</option>
-        </select>
-      </label>
-    </div>
-    <div class="row">
-      <label>Start time<input id="c-fStart" type="time"></label>
-      <label>End time<input id="c-fEnd" type="time"></label>
-    </div>
-    <label>Notes<textarea id="c-fNotes" rows="2" placeholder="Optional"></textarea></label>
-    <div class="colors" id="c-colors"></div>
-    <div class="err" id="c-evErr" role="alert"></div>
-    <div class="actions">
-      <button class="danger" id="c-del" hidden>Delete</button>
-      <span class="grow"></span>
-      <button id="c-close">Close</button>
-      <button class="primary" id="c-save">Add event</button>
-    </div>
-  </div>
-</dialog>
-
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="shared.js"></script>
-<script src="calendar.js"></script>
-<script src="tasks.js"></script>
-<script src="notes.js"></script>
 <script src="app.js"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
 </body>
 </html>
