@@ -83,41 +83,157 @@ function updateAuthUI(user){
   if(user){
     const display=user.displayName||user.email?.split('@')[0]||'My Workspace';
     name.textContent=display;
-    email.textContent=user.email||'Google account';
+    email.textContent=user.email||'Signed in';
     avatar.textContent=(display.trim()[0]||'J').toUpperCase();
-    btn.textContent='↪';
+    btn.textContent='Sign out';
     btn.title='Sign out';
     btn.setAttribute('aria-label','Sign out');
   }else{
     name.textContent='My Workspace';
     email.textContent='Sign in to sync';
     avatar.textContent='J';
-    btn.textContent='↗';
-    btn.title='Sign in with Google';
-    btn.setAttribute('aria-label','Sign in with Google');
+    btn.textContent='Sign in';
+    btn.title='Sign in';
+    btn.setAttribute('aria-label','Sign in');
+  }
+}
+function authMessage(text,isError=true){
+  const e=$('#authMessage');
+  if(e){e.textContent=text||'';e.classList.toggle('error',!!isError);e.classList.toggle('success',!isError);}
+}
+function setAuthMode(mode){
+  const register=mode==='register';
+  $$('.auth-tab').forEach(b=>b.classList.toggle('active',b.dataset.authMode===mode));
+  const wrap=$('#authConfirmWrap'), pass=$('#authPassword'), submit=$('#emailAuthSubmit'), forgot=$('#authForgot');
+  if(wrap)wrap.hidden=!register;
+  if(pass)pass.autocomplete=register?'new-password':'current-password';
+  if(submit)submit.textContent=register?'Create account':'Log in';
+  if(forgot)forgot.hidden=register;
+  authMessage('');
+}
+function openAuthModal(){
+  const modal=$('#authModal');
+  if(!modal)return;
+  setAuthMode('login');
+  authMessage('');
+  modal.hidden=false;
+  document.body.classList.add('auth-open');
+  setTimeout(()=>$('#authEmail')?.focus(),30);
+}
+function closeAuthModal(){
+  const modal=$('#authModal');
+  if(modal)modal.hidden=true;
+  document.body.classList.remove('auth-open');
+}
+function authErrorMessage(err){
+  const code=err?.code||'unknown-error';
+  const map={
+    'auth/invalid-email':'Please enter a valid email address.',
+    'auth/invalid-credential':'The email or password is incorrect.',
+    'auth/wrong-password':'The email or password is incorrect.',
+    'auth/user-not-found':'The email or password is incorrect.',
+    'auth/email-already-in-use':'That email already has an account. Try Log in.',
+    'auth/weak-password':'That password is too weak. Use at least 8 characters.',
+    'auth/operation-not-allowed':'This sign-in method is not enabled in Firebase Authentication.',
+    'auth/unauthorized-domain':'This website domain is not authorized in Firebase Authentication.',
+    'auth/popup-blocked':'The Google sign-in popup was blocked. Allow popups and try again.',
+    'auth/popup-closed-by-user':'The Google sign-in window was closed before completing sign-in.',
+    'auth/cancelled-popup-request':'Another Google sign-in window is already open.',
+    'auth/network-request-failed':'The connection to Firebase failed. Check your internet connection.',
+    'auth/account-exists-with-different-credential':'This email already uses another sign-in method. Log in with that method first.'
+  };
+  return {code,message:map[code]||err?.message||'Google sign-in could not be completed.'};
+}
+async function signInWithGoogle(){
+  if(!auth){authMessage('Firebase could not be initialized.');return;}
+  authMessage('Opening Google sign-in…',false);
+  try{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await auth.signInWithPopup(provider);
+    closeAuthModal();
+  }catch(err){
+    console.error('Google sign-in failed:',err);
+    const info=authErrorMessage(err);
+    if(err?.code==='auth/popup-blocked'){
+      try{
+        const provider=new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({prompt:'select_account'});
+        await auth.signInWithRedirect(provider);
+        return;
+      }catch(redirectErr){
+        console.error('Google redirect sign-in failed:',redirectErr);
+        const r=authErrorMessage(redirectErr);
+        authMessage('Error '+r.code+': '+r.message);
+        return;
+      }
+    }
+    authMessage('Error '+info.code+': '+info.message);
+  }
+}
+async function handleEmailAuth(e){
+  e.preventDefault();
+  if(!auth){authMessage('Firebase could not be initialized.');return;}
+  const register=!$('#authConfirmWrap')?.hidden;
+  const email=$('#authEmail')?.value.trim()||'';
+  const password=$('#authPassword')?.value||'';
+  const password2=$('#authPassword2')?.value||'';
+  if(!email){authMessage('Please enter your email address.');return;}
+  if(password.length<8){authMessage('Password must be at least 8 characters.');return;}
+  if(register&&password!==password2){authMessage("Passwords don't match.");return;}
+  const submit=$('#emailAuthSubmit');
+  if(submit)submit.disabled=true;
+  authMessage(register?'Creating your account…':'Signing you in…',false);
+  try{
+    if(register)await auth.createUserWithEmailAndPassword(email,password);
+    else await auth.signInWithEmailAndPassword(email,password);
+    closeAuthModal();
+    toast(register?'Account created.':'Signed in successfully.');
+  }catch(err){
+    console.error('Email/password sign-in failed:',err);
+    const info=authErrorMessage(err);
+    authMessage('Error '+info.code+': '+info.message);
+  }finally{
+    if(submit)submit.disabled=false;
+  }
+}
+async function sendPasswordReset(){
+  if(!auth){authMessage('Firebase could not be initialized.');return;}
+  const email=$('#authEmail')?.value.trim()||'';
+  if(!email){authMessage('Enter your email first, then click Forgot password.');$('#authEmail')?.focus();return;}
+  try{
+    await auth.sendPasswordResetEmail(email);
+    authMessage('If an account exists for that email, a password-reset email has been sent.',false);
+  }catch(err){
+    console.error('Password reset failed:',err);
+    const info=authErrorMessage(err);
+    authMessage('Error '+info.code+': '+info.message);
   }
 }
 async function handleAuthClick(){
   if(!auth){toast('Firebase could not be initialized.');return;}
   if(auth.currentUser){
-    try{await auth.signOut();cloudUser=null;cloudLoaded=false;setSaveStatus('Saved on this device');updateAuthUI(null);toast('Signed out.');}
-    catch(err){console.error(err);toast('Could not sign out.');}
+    try{
+      await auth.signOut();
+      cloudUser=null;cloudLoaded=false;
+      setSaveStatus('Saved on this device');
+      updateAuthUI(null);
+      toast('Signed out.');
+    }catch(err){console.error(err);toast('Could not sign out.');}
     return;
   }
-  try{
-    const provider=new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({prompt:'select_account'});
-    await auth.signInWithPopup(provider);
-  }catch(err){
-    console.error('Google sign-in failed:',err);
-    if(err?.code==='auth/popup-blocked')toast('Your browser blocked the sign-in popup. Allow popups and try again.');
-    else if(err?.code==='auth/unauthorized-domain')toast('Add this website domain to Firebase Authorized Domains.');
-    else toast('Google sign-in could not be completed.');
-  }
+  openAuthModal();
 }
 function setupFirebaseAuth(){
   updateAuthUI(auth?.currentUser||null);
   $('#authButton')?.addEventListener('click',handleAuthClick);
+  $('#authClose')?.addEventListener('click',closeAuthModal);
+  $('#authModal')?.addEventListener('click',e=>{if(e.target.id==='authModal')closeAuthModal();});
+  $$('.auth-tab').forEach(b=>b.addEventListener('click',()=>setAuthMode(b.dataset.authMode)));
+  $('#googleAuthBtn')?.addEventListener('click',signInWithGoogle);
+  $('#emailAuthForm')?.addEventListener('submit',handleEmailAuth);
+  $('#authForgot')?.addEventListener('click',sendPasswordReset);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAuthModal();});
   if(!auth){setSaveStatus('Firebase unavailable');return;}
   auth.onAuthStateChanged(user=>{
     if(user)loadCloudForUser(user);
