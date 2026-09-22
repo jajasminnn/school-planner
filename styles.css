@@ -27,6 +27,8 @@ textarea.cell-input{resize:none;overflow:hidden;font-family:inherit;line-height:
 
 /* Visible Firebase account authentication */
 .auth-btn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:750;white-space:nowrap;cursor:pointer}
+.auth-btn.full{width:100%;padding:10px 12px;text-align:center;margin:2px 0}
+.sidebar.collapsed .auth-btn.full{overflow:hidden;text-overflow:ellipsis;padding:10px 6px}
 .auth-btn:hover{filter:brightness(.95)}
 .auth-btn:active{transform:translateY(1px)}
 .auth-backdrop{position:fixed;inset:0;background:rgba(15,25,30,.48);backdrop-filter:blur(5px);z-index:200;display:grid;place-items:center;padding:18px}
