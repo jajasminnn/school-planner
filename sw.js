@@ -1,4 +1,4 @@
-const CACHE='school-planner-v6-spreadsheet-tasks';
+const CACHE='school-planner-v7-notebook-upgrade';
 const ASSETS=['./','./index.html','./login.html','./styles.css','./app.js','./login.js','./firebase-config.js','./manifest.json','./icon.svg'];
 const NETWORK_FIRST=['./index.html','./firebase-config.js','./app.js','./styles.css'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
