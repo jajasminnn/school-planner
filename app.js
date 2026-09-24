@@ -29,8 +29,8 @@ const CLOCK_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy
 const fmtClock=v=>{if(!v)return '';const p=to12(v);return `${p.h}:${p.m} ${p.ap}`};
 const shiftTime=(v,mins)=>{const [H,M]=v.split(':').map(Number);const t=((H*60+M+mins)%1440+1440)%1440;return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
 const nextFullHour=()=>String((new Date().getHours()+1)%24).padStart(2,'0')+':00';
-function clockFieldHtml(id,value,label){
-  return `<button type="button" class="clock-field ${value?'':'is-empty'}" id="${id}" data-value="${esc(value||'')}" data-label="${esc(label)}" aria-haspopup="dialog" aria-expanded="false" aria-label="${esc(label)}: ${value?fmtClock(value):'not set'}">${CLOCK_ICON}<span class="clock-field-text">${value?fmtClock(value):'Set time'}</span><svg class="clock-field-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>`;
+function clockFieldHtml(id,value,label,tooltip=''){
+  return `<button type="button" class="clock-field ${value?'':'is-empty'}" id="${id}" data-value="${esc(value||'')}" data-label="${esc(label)}"${tooltip?` title="${esc(tooltip)}"`:''} aria-haspopup="dialog" aria-expanded="false" aria-label="${esc(label)}: ${value?fmtClock(value):'not set'}">${CLOCK_ICON}<span class="clock-field-text">${value?fmtClock(value):'Set time'}</span><svg class="clock-field-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>`;
 }
 function readClockField(id){return $('#'+id)?.dataset.value||''}
 function setClockField(el,value){
@@ -511,7 +511,7 @@ function renderTasks(){
  <div class="task-sheet-tabs" role="tablist">${subjectTabs}</div>
  <div class="toolbar task-tools"><input class="input" id="taskSearch" value="${esc(q)}" placeholder="Search this sheet…"><select class="select" id="taskStatus"><option value="">All statuses</option>${['Not Started','In Progress','Done'].map(x=>`<option ${status===x?'selected':''}>${x}</option>`).join('')}</select><select class="select" id="taskPriority"><option value="">All priorities</option>${['High','Medium','Low'].map(x=>`<option ${pri===x?'selected':''}>${x}</option>`).join('')}</select><span class="grow"></span><span class="pill">${base.length} shown</span><button class="ghost" data-clear-done>Clear completed</button></div>
  <div class="card task-sheet-card"><div class="sheet-caption"><div><b>${active==='all'?'All Subjects':esc(taskSubject(active))}</b><span>Type straight into any cell, just like a spreadsheet — it saves automatically.</span></div><span class="pill">Auto-saved</span></div>
- <div class="sheet-scroll"><table class="task-sheet"><thead><tr><th>Subject & Tasks</th><th>TYPE</th><th>DATE ASSIGNED</th><th>DUE DATE</th><th>TIME OF DEADLINE</th><th>PRIORITY</th><th>PROGRESS / STATUS</th><th>DAYS LEFT</th><th>NOTES / LINK</th><th>TYPE OF SUBMISSION</th><th>NOTES AND RESOURCES</th><th class="actions-col"></th></tr></thead><tbody>${base.map(taskRow).join('')||`<tr><td colspan="12"><div class="empty">No tasks in this sheet yet. Click <b>+ Add task</b> to create one.</div></td></tr>`}</tbody></table></div></div>`;
+ <div class="sheet-scroll"><table class="task-sheet"><thead><tr><th>Subject & Tasks</th><th>TYPE</th><th>DATE ASSIGNED</th><th>DUE DATE</th><th>DEADLINE</th><th>PRIORITY</th><th>PROGRESS / STATUS</th><th>DAYS LEFT</th><th>NOTES / LINK</th><th>TYPE OF SUBMISSION</th><th>NOTES AND RESOURCES</th><th class="actions-col"></th></tr></thead><tbody>${base.map(taskRow).join('')||`<tr><td colspan="12"><div class="empty">No tasks in this sheet yet. Click <b>+ Add task</b> to create one.</div></td></tr>`}</tbody></table></div></div>`;
  root.querySelectorAll('.task-name').forEach(autoGrow);
 }
 function submissionCellHtml(t,forceOther){
@@ -528,7 +528,7 @@ function taskRow(t){
  <td><select class="cell-select" data-field="type">${TASK_TYPES.map(x=>`<option ${x===(t.type||'Activity')?'selected':''}>${x}</option>`).join('')}</select></td>
  <td><input class="cell-input" type="date" data-field="assigned" value="${esc(t.assigned||'')}"></td>
  <td><input class="cell-input" type="date" data-field="due" value="${esc(t.due||'')}"></td>
- <td>${clockFieldHtml('tf-'+t.id,t.time||'','Deadline time')}</td>
+ <td>${clockFieldHtml('tf-'+t.id,t.time||'','Deadline time','Edit deadline time')}</td>
  <td><select class="cell-select priority ${String(t.priority||'Medium').toLowerCase()}" data-field="priority">${PRIORITIES.map(x=>`<option ${x===(t.priority||'Medium')?'selected':''}>${x}</option>`).join('')}</select></td>
  <td><select class="sheet-status" data-field="status">${STATUSES.map(x=>`<option ${t.status===x?'selected':''}>${x}</option>`).join('')}</select></td>
  <td><span class="pill ${dc}">${days}</span></td>

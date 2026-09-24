@@ -217,3 +217,6 @@ body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background
 .task-sheet .clock-field svg{width:14px;height:14px}
 .task-sheet .clock-field-caret{display:none}
 .task-sheet .clock-field:hover{border-color:var(--line);background:var(--panel)}
+.task-sheet .clock-field:hover,.task-sheet .clock-field:focus-visible{color:var(--accent)}
+.task-sheet .clock-field:hover svg,.task-sheet .clock-field:focus-visible svg{color:var(--accent)}
+.task-sheet .clock-field.is-empty:hover .clock-field-text{color:var(--accent)}
