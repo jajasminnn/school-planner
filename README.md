@@ -2,6 +2,8 @@
 
 **Sync your studies, tasks, and goals.**
 
+*Your acads. All synced.*
+
 JASync is a personal school planner: schedules, deadlines, subjects, notes, and study plans in one calm place. It is a static website (plain HTML, CSS and JavaScript, no build step) that uses Firebase for sign-in and cloud sync, and is published with GitHub Pages.
 
 ## Features
