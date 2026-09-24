@@ -25,6 +25,117 @@ function to24(h,m,ap){h=parseInt(h||'12',10);if(isNaN(h)||h<1)h=12;if(h>12)h=12;
 function timeFieldHtml(id,val){const p=to12(val);return `<div class="time-field" id="${id}"><input class="time-num" type="number" min="1" max="12" placeholder="hh" value="${esc(p.h)}" data-tp="h"><span>:</span><input class="time-num" type="number" min="0" max="59" placeholder="mm" value="${esc(p.m)}" data-tp="m"><div class="seg time-ampm"><button type="button" data-ap="AM" class="${p.ap==='AM'?'active':''}">AM</button><button type="button" data-ap="PM" class="${p.ap==='PM'?'active':''}">PM</button></div></div>`}
 function readTimeFieldEl(wrap){if(!wrap)return '';const hEl=wrap.querySelector('[data-tp="h"]'),mEl=wrap.querySelector('[data-tp="m"]');const h=(hEl?.value||'').trim(),m=(mEl?.value||'').trim();if(!h&&!m)return '';const ap=wrap.querySelector('.time-ampm button.active')?.dataset.ap||'AM';return to24(h,m,ap)}
 function readTimeField(id){return readTimeFieldEl($('#'+id))}
+/* ---- Clock time picker: one reusable component for the event form's Start time and End time ----
+   Only the UI changes. Values are still stored as the same "HH:MM" 24-hour strings ('' = no time),
+   converted with to12()/to24() exactly like the old hh:mm AM/PM inputs. */
+const CLOCK_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const fmtClock=v=>{if(!v)return '';const p=to12(v);return `${p.h}:${p.m} ${p.ap}`};
+const shiftTime=(v,mins)=>{const [H,M]=v.split(':').map(Number);const t=((H*60+M+mins)%1440+1440)%1440;return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
+const nextFullHour=()=>String((new Date().getHours()+1)%24).padStart(2,'0')+':00';
+function clockFieldHtml(id,value,label){
+  return `<button type="button" class="clock-field ${value?'':'is-empty'}" id="${id}" data-value="${esc(value||'')}" data-label="${esc(label)}" aria-haspopup="dialog" aria-expanded="false" aria-label="${esc(label)}: ${value?fmtClock(value):'not set'}">${CLOCK_ICON}<span class="clock-field-text">${value?fmtClock(value):'Set time'}</span><svg class="clock-field-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>`;
+}
+function readClockField(id){return $('#'+id)?.dataset.value||''}
+function setClockField(el,value){
+  el.dataset.value=value||'';el.classList.toggle('is-empty',!value);
+  el.querySelector('.clock-field-text').textContent=value?fmtClock(value):'Set time';
+  el.setAttribute('aria-label',`${el.dataset.label}: ${value?fmtClock(value):'not set'}`);
+}
+// suggest(): the time to start from when the field is empty (e.g. End time = Start time + 1 hour).
+function bindClockField(el,{suggest}={}){el.addEventListener('click',()=>openTimePicker(el,{suggest}))}
+let closeTimePicker=()=>{};
+function openTimePicker(field,{suggest}={}){
+  closeTimePicker();
+  const label=field.dataset.label||'Time',had=field.dataset.value;
+  const p=to12(had||(suggest&&suggest())||'09:00');
+  let hour=+p.h,minute=+p.m,ap=p.ap,mode='hour',angle=null,drag=null;
+  const layer=document.createElement('div');layer.className='tp-layer';
+  layer.innerHTML=`<div class="tp" role="dialog" aria-modal="true" aria-label="Choose ${esc(label.toLowerCase())}">
+    <div class="tp-display"><button type="button" class="tp-part" data-part="hour"></button><span class="tp-colon" aria-hidden="true">:</span><button type="button" class="tp-part" data-part="minute"></button><span class="tp-period" aria-hidden="true"></span></div>
+    <p class="tp-hint" id="tpHint"></p>
+    <div class="tp-clock" tabindex="0" role="slider" aria-describedby="tpHint"><div class="tp-nums" aria-hidden="true"></div><div class="tp-hand" aria-hidden="true"><i></i></div><div class="tp-center" aria-hidden="true"></div></div>
+    <div class="seg tp-ampm" role="radiogroup" aria-label="AM or PM"><button type="button" role="radio" data-ap="AM">AM</button><button type="button" role="radio" data-ap="PM">PM</button></div>
+    <div class="tp-foot">${had?'<button type="button" class="tp-clear" data-tp-clear>Clear time</button>':''}<span class="grow"></span><button type="button" class="ghost" data-tp-cancel>Cancel</button><button type="button" class="primary" data-tp-done>Done</button></div>
+  </div>`;
+  document.body.appendChild(layer);
+  const tp=layer.querySelector('.tp'),clock=tp.querySelector('.tp-clock'),nums=tp.querySelector('.tp-nums'),hand=tp.querySelector('.tp-hand');
+  const pad=n=>String(n).padStart(2,'0');
+  function update(){
+    const hp=tp.querySelector('[data-part="hour"]'),mp=tp.querySelector('[data-part="minute"]');
+    hp.textContent=hour;mp.textContent=pad(minute);tp.querySelector('.tp-period').textContent=ap;
+    hp.classList.toggle('is-active',mode==='hour');mp.classList.toggle('is-active',mode==='minute');
+    hp.setAttribute('aria-pressed',String(mode==='hour'));mp.setAttribute('aria-pressed',String(mode==='minute'));
+    hp.setAttribute('aria-label',`Hour, ${hour}. Change hour`);mp.setAttribute('aria-label',`Minutes, ${pad(minute)}. Change minutes`);
+    nums.querySelectorAll('.tp-num').forEach(n=>n.classList.toggle('is-selected',mode==='hour'?+n.dataset.v===hour:+n.dataset.v===minute));
+    // Rotate the hand the short way round (e.g. 55 → 00 moves forward, not all the way back).
+    const target=mode==='hour'?(hour%12)*30:minute*6;
+    angle=angle==null?target:target+360*Math.round((angle-target)/360);
+    hand.style.setProperty('--angle',angle+'deg');
+    hand.classList.toggle('off-number',mode==='minute'&&minute%5!==0);
+    clock.setAttribute('aria-label',mode==='hour'?'Hour':'Minutes');
+    clock.setAttribute('aria-valuemin',mode==='hour'?'1':'0');clock.setAttribute('aria-valuemax',mode==='hour'?'12':'59');
+    clock.setAttribute('aria-valuenow',String(mode==='hour'?hour:minute));
+    clock.setAttribute('aria-valuetext',`${hour}:${pad(minute)} ${ap}`);
+    tp.querySelector('#tpHint').textContent=mode==='hour'?'Pick the hour':'Pick the minutes · drag for exact minutes';
+    tp.querySelectorAll('.tp-ampm button').forEach(b=>{const on=b.dataset.ap===ap;b.classList.toggle('active',on);b.setAttribute('aria-checked',String(on))});
+  }
+  function setMode(m){
+    mode=m;
+    const vals=mode==='hour'?[12,1,2,3,4,5,6,7,8,9,10,11]:[0,5,10,15,20,25,30,35,40,45,50,55];
+    nums.innerHTML=vals.map((v,i)=>`<span class="tp-num" data-v="${v}" style="--a:${i*30}deg">${mode==='hour'?v:pad(v)}</span>`).join('');
+    nums.classList.remove('is-entering');void nums.offsetWidth;nums.classList.add('is-entering');
+    update();
+  }
+  function pick(e,snap){
+    const r=clock.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
+    const deg=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
+    if(mode==='hour')hour=Math.round(deg/30)%12||12;
+    else{let m=Math.round(deg/6)%60;if(snap)m=Math.round(m/5)*5%60;minute=m}
+    update();
+  }
+  // Tap a number to pick it (minutes snap to 5); drag round the face for exact minutes.
+  clock.addEventListener('pointerdown',e=>{e.preventDefault();clock.focus();try{clock.setPointerCapture(e.pointerId)}catch{}drag={x:e.clientX,y:e.clientY,moved:false};clock.classList.add('is-dragging');pick(e,false)});
+  clock.addEventListener('pointermove',e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6)drag.moved=true;pick(e,false)});
+  const endDrag=(e,apply)=>{if(!drag)return;if(apply)pick(e,!drag.moved);drag=null;clock.classList.remove('is-dragging');if(apply&&mode==='hour')setTimeout(()=>{if(layer.isConnected)setMode('minute')},180)};
+  clock.addEventListener('pointerup',e=>endDrag(e,true));
+  clock.addEventListener('pointercancel',e=>endDrag(e,false));
+  clock.addEventListener('keydown',e=>{
+    const step={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1,PageUp:5,PageDown:-5}[e.key];
+    if(step){e.preventDefault();if(mode==='hour')hour=((hour-1+(Math.abs(step)===5?Math.sign(step):step))%12+12)%12+1;else minute=((minute+step)%60+60)%60;update();return}
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();if(mode==='hour')setMode('minute');else tp.querySelector('[data-tp-done]').focus()}
+  });
+  tp.querySelectorAll('.tp-part').forEach(b=>b.onclick=()=>{setMode(b.dataset.part);clock.focus()});
+  tp.querySelectorAll('.tp-ampm button').forEach(b=>b.onclick=()=>{ap=b.dataset.ap;update()});
+  function close(value){
+    // value undefined = cancel (leave the field unchanged); '' = cleared; 'HH:MM' = confirmed.
+    if(value!==undefined){setClockField(field,value);field.dispatchEvent(new Event('change',{bubbles:true}))}
+    layer.remove();field.setAttribute('aria-expanded','false');
+    removeEventListener('resize',place);document.removeEventListener('keydown',onKey,true);
+    closeTimePicker=()=>{};field.focus();
+  }
+  closeTimePicker=()=>close();
+  tp.querySelector('[data-tp-done]').onclick=()=>close(to24(hour,minute,ap));
+  tp.querySelector('[data-tp-cancel]').onclick=()=>close();
+  tp.querySelector('[data-tp-clear]')?.addEventListener('click',()=>close(''));
+  // Clicking outside only cancels the unconfirmed choice; nothing is saved until Done.
+  layer.addEventListener('click',e=>{if(e.target===layer)close()});
+  function onKey(e){
+    if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();return}
+    if(e.key==='Tab'){const f=[...tp.querySelectorAll('button,[tabindex="0"]')];const i=f.indexOf(document.activeElement);if(e.shiftKey&&i<=0){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&i===f.length-1){e.preventDefault();f[0].focus()}}
+  }
+  document.addEventListener('keydown',onKey,true);
+  // Desktop: a compact popover next to the field. Phones: a centred sheet.
+  function place(){
+    const small=innerWidth<600;layer.classList.toggle('is-sheet',small);
+    if(small){tp.style.left=tp.style.top='';return}
+    const r=field.getBoundingClientRect(),w=tp.offsetWidth,h=tp.offsetHeight;
+    let top=r.bottom+8;if(top+h>innerHeight-12)top=r.top-h-8;if(top<12)top=Math.max(12,(innerHeight-h)/2);
+    tp.style.left=Math.min(Math.max(12,r.left),innerWidth-w-12)+'px';tp.style.top=top+'px';
+  }
+  addEventListener('resize',place);
+  field.setAttribute('aria-expanded','true');
+  setMode('hour');place();clock.focus();
+}
 function autoGrow(el){if(!el)return;el.style.height='auto';el.style.height=el.scrollHeight+'px'}
 /* ---- Notebook: rich text editor + local file attachments (IndexedDB) ---- */
 const FILES_DB='school-planner-files',FILES_STORE='attachments';
@@ -330,7 +441,10 @@ function renderCalendar(){
 function renderAgenda(){ state.calMode='agenda'; renderCalendar(); }
 function eventModal(ev=null,date=today()){
  const initialMode=ev&&ev.subject&&taskSubject(ev.subject)===ev.title?'subject':'custom';
- openModal(ev?'Edit event':'Add event',`<div class="form-grid"><div class="field full"><label>Event title</label><div class="seg title-mode-seg" style="margin-bottom:8px"><button type="button" class="${initialMode==='subject'?'active':''}" data-title-mode="subject">Choose a subject</button><button type="button" class="${initialMode==='custom'?'active':''}" data-title-mode="custom">Customize</button></div><select class="select" id="fTitleSubject" ${initialMode==='subject'?'':'hidden'}><option value="">Choose subject…</option>${state.settings.subjects.map(s=>`<option value="${s.id}" ${s.id===ev?.subject?'selected':''}>${esc(s.name||'Unnamed subject')}</option>`).join('')}</select><input class="input" id="fTitle" ${initialMode==='custom'?'':'hidden'} value="${esc(ev?.title||'')}" placeholder="e.g. HCI class, Study session"></div><div class="field"><label>Date</label><input class="input" id="fDate" type="date" value="${ev?.date||date}"></div><div class="field"><label>Color</label><input class="input" id="fColor" type="color" value="${ev?.color||(ev?.subject?subjectColor(ev.subject):'#367e83')}"><div class="color-swatches">${SUBJECT_COLORS.map(c=>`<button type="button" class="swatch" data-color="${c}" style="background:${c}" aria-label="Use color ${c}" title="${c}"></button>`).join('')}</div></div><div class="field"><label>Start time</label>${timeFieldHtml('fStart',ev?.start||'')}</div><div class="field"><label>End time</label>${timeFieldHtml('fEnd',ev?.end||'')}</div><div class="field full"><label>Repeat</label><select class="select" id="fRepeat"><option value="none" ${!ev?.repeat||ev?.repeat==='none'?'selected':''}>Does not repeat</option><option value="daily" ${ev?.repeat==='daily'?'selected':''}>Every day</option><option value="weekly" ${ev?.repeat==='weekly'?'selected':''}>Every week</option><option value="biweekly" ${ev?.repeat==='biweekly'?'selected':''}>Every other week</option><option value="monthly" ${ev?.repeat==='monthly'?'selected':''}>Every month</option><option value="yearly" ${ev?.repeat==='yearly'?'selected':''}>Every year</option></select></div><div class="field full"><label>Notes</label><textarea class="textarea" id="fNotes" rows="4" placeholder="Room, reminders, links…">${esc(ev?.notes||'')}</textarea></div></div>`,`${ev?'<button class="danger" id="deleteEvent">Delete</button>':''}<span style="flex:1"></span><button class="ghost" data-close>Cancel</button><button class="primary" id="saveEvent">${ev?'Save changes':'Save event'}</button>`);
+ openModal(ev?'Edit event':'Add event',`<div class="form-grid"><div class="field full"><label>Event title</label><div class="seg title-mode-seg" style="margin-bottom:8px"><button type="button" class="${initialMode==='subject'?'active':''}" data-title-mode="subject">Choose a subject</button><button type="button" class="${initialMode==='custom'?'active':''}" data-title-mode="custom">Customize</button></div><select class="select" id="fTitleSubject" ${initialMode==='subject'?'':'hidden'}><option value="">Choose subject…</option>${state.settings.subjects.map(s=>`<option value="${s.id}" ${s.id===ev?.subject?'selected':''}>${esc(s.name||'Unnamed subject')}</option>`).join('')}</select><input class="input" id="fTitle" ${initialMode==='custom'?'':'hidden'} value="${esc(ev?.title||'')}" placeholder="e.g. HCI class, Study session"></div><div class="field"><label>Date</label><input class="input" id="fDate" type="date" value="${ev?.date||date}"></div><div class="field"><label>Color</label><input class="input" id="fColor" type="color" value="${ev?.color||(ev?.subject?subjectColor(ev.subject):'#367e83')}"><div class="color-swatches">${SUBJECT_COLORS.map(c=>`<button type="button" class="swatch" data-color="${c}" style="background:${c}" aria-label="Use color ${c}" title="${c}"></button>`).join('')}</div></div><div class="field"><label for="fStart">Start time</label>${clockFieldHtml('fStart',ev?.start||'','Start time')}</div><div class="field"><label for="fEnd">End time</label>${clockFieldHtml('fEnd',ev?.end||'','End time')}</div><div class="field full"><label>Repeat</label><select class="select" id="fRepeat"><option value="none" ${!ev?.repeat||ev?.repeat==='none'?'selected':''}>Does not repeat</option><option value="daily" ${ev?.repeat==='daily'?'selected':''}>Every day</option><option value="weekly" ${ev?.repeat==='weekly'?'selected':''}>Every week</option><option value="biweekly" ${ev?.repeat==='biweekly'?'selected':''}>Every other week</option><option value="monthly" ${ev?.repeat==='monthly'?'selected':''}>Every month</option><option value="yearly" ${ev?.repeat==='yearly'?'selected':''}>Every year</option></select></div><div class="field full"><label>Notes</label><textarea class="textarea" id="fNotes" rows="4" placeholder="Room, reminders, links…">${esc(ev?.notes||'')}</textarea></div></div>`,`${ev?'<button class="danger" id="deleteEvent">Delete</button>':''}<span style="flex:1"></span><button class="ghost" data-close>Cancel</button><button class="primary" id="saveEvent">${ev?'Save changes':'Save event'}</button>`);
+ // Empty Start time opens at the next full hour; empty End time opens one hour after the start.
+ bindClockField($('#fStart'),{suggest:nextFullHour});
+ bindClockField($('#fEnd'),{suggest:()=>shiftTime(readClockField('fStart')||nextFullHour(),60)});
  let titleMode=initialMode;
  $$('.title-mode-seg button').forEach(b=>b.onclick=()=>{
    titleMode=b.dataset.titleMode;
@@ -354,7 +468,7 @@ function eventModal(ev=null,date=today()){
      title=$('#fTitle').value.trim();
      subject=ev?.subject||'';
    }
-   const st=readTimeField('fStart'), en=readTimeField('fEnd');
+   const st=readClockField('fStart'), en=readClockField('fEnd');
    if(st&&en&&en<st)return toast('End time must be after the start time.');
    const x={id:ev?.id||uid('e'),title,subject,date:$('#fDate').value,start:st,end:en,repeat:$('#fRepeat').value,notes:$('#fNotes').value.trim(),color:$('#fColor').value};
    if(!x.title||!x.date)return toast('Add a title and date first.');

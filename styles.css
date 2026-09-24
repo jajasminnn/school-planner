@@ -180,3 +180,46 @@ body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background
 .note-modal .modal-body{container-type:inline-size}
 /* Lesson footer: Close + Save at the bottom, matching the Notes popup footer */
 .lesson-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+/* Event form time fields + clock time picker (one component for Start time and End time) */
+.clock-field{width:100%;display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:11px;padding:10px 12px;text-align:left;cursor:pointer;font-weight:650;transition:border-color .15s ease,box-shadow .15s ease}
+.clock-field svg{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}
+.clock-field-text{flex:1;font-variant-numeric:tabular-nums}
+.clock-field.is-empty .clock-field-text{color:var(--muted);font-weight:500}
+.clock-field:hover{border-color:#b9d6d8}
+.clock-field:focus-visible,.clock-field[aria-expanded="true"]{outline:0;border-color:#8dbabd;box-shadow:0 0 0 3px var(--accent-soft)}
+.clock-field-caret{transition:transform .15s ease}
+.clock-field[aria-expanded="true"] .clock-field-caret{transform:rotate(180deg)}
+.tp-layer{position:fixed;inset:0;z-index:130}
+.tp{position:fixed;width:300px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 60px rgba(20,40,45,.2);padding:16px 18px 14px;animation:tpIn .14s ease-out}
+@keyframes tpIn{from{opacity:0;transform:translateY(-4px) scale(.98)}}
+.tp-display{display:flex;align-items:baseline;justify-content:center;font-size:40px;font-weight:800;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.tp-part{border:0;background:transparent;color:var(--muted);font:inherit;padding:2px 8px;border-radius:12px;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.tp-part:hover{color:var(--ink)}
+.tp-part.is-active{color:var(--accent);background:var(--accent-soft)}
+.tp-part:focus-visible,.tp-ampm button:focus-visible,.tp-foot button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tp-colon{color:var(--muted)}
+.tp-period{font-size:18px;font-weight:750;color:var(--muted);margin-left:8px}
+.tp-hint{margin:4px 0 12px;text-align:center;font-size:12px;color:var(--muted)}
+.tp-clock{--size:248px;position:relative;width:var(--size);height:var(--size);margin:0 auto;border-radius:50%;background:var(--panel2);border:1px solid var(--line);touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none}
+.tp-clock:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.tp-num{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;display:grid;place-items:center;border-radius:50%;font-size:15px;font-weight:650;color:var(--ink);transform:rotate(var(--a)) translateY(calc(var(--size) / -2 + 26px)) rotate(calc(var(--a) * -1));transition:background-color .15s ease,color .15s ease;pointer-events:none;z-index:1}
+.tp-num.is-selected{background:var(--accent);color:#fff;font-weight:800;box-shadow:0 0 0 3px var(--accent-soft)}
+.tp-nums.is-entering .tp-num{animation:tpNums .16s ease-out}
+@keyframes tpNums{from{opacity:0;scale:.85}}
+.tp-hand{position:absolute;left:50%;bottom:50%;width:2px;height:calc(var(--size) / 2 - 26px);margin-left:-1px;background:var(--accent);transform-origin:50% 100%;transform:rotate(var(--angle,0deg));transition:transform .2s ease;pointer-events:none}
+.tp-hand i{position:absolute;left:50%;top:0;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--accent);opacity:0}
+.tp-hand.off-number i{opacity:1}
+.tp-clock.is-dragging .tp-hand{transition:none}
+.tp-center{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--accent)}
+.tp-ampm{display:flex;width:max-content;margin:14px auto 0}
+.tp-ampm button{min-width:64px;padding:8px 14px;cursor:pointer}
+.tp .tp-ampm button.active{background:var(--accent);color:#fff;font-weight:800}
+.tp-foot{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.tp-foot .grow{flex:1}
+.tp-clear{border:0;background:none;color:var(--muted);font-size:12px;font-weight:650;padding:6px 2px;cursor:pointer;text-decoration:underline}
+.tp-clear:hover{color:var(--danger)}
+.tp-layer.is-sheet{background:rgba(15,25,30,.38);display:grid;place-items:center;padding:16px}
+.tp-layer.is-sheet .tp{position:relative;width:min(340px,100%);max-height:calc(100dvh - 32px);overflow:auto}
+.tp-layer.is-sheet .tp-clock{--size:min(72vw,280px)}
+.tp-layer.is-sheet .tp-num{width:44px;height:44px;margin:-22px 0 0 -22px}
+@media(prefers-reduced-motion:reduce){.tp,.tp-nums.is-entering .tp-num{animation:none}.tp-hand,.tp-num,.tp-part,.clock-field,.clock-field-caret{transition:none}}
