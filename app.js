@@ -51,9 +51,9 @@ function openTimePicker(field,{suggest}={}){
   let hour=+p.h,minute=+p.m,ap=p.ap,mode='hour',angle=null,drag=null;
   const layer=document.createElement('div');layer.className='tp-layer';
   layer.innerHTML=`<div class="tp" role="dialog" aria-modal="true" aria-label="Choose ${esc(label.toLowerCase())}">
-    <div class="tp-display"><button type="button" class="tp-part" data-part="hour"></button><span class="tp-colon" aria-hidden="true">:</span><button type="button" class="tp-part" data-part="minute"></button><span class="tp-period" aria-hidden="true"></span></div>
+    <div class="tp-display"><button type="button" class="tp-step" data-step="-1">−</button><button type="button" class="tp-part" data-part="hour"></button><span class="tp-colon" aria-hidden="true">:</span><button type="button" class="tp-part" data-part="minute"></button><span class="tp-period" aria-hidden="true"></span><button type="button" class="tp-step" data-step="1">+</button></div>
     <p class="tp-hint" id="tpHint"></p>
-    <div class="tp-clock" tabindex="0" role="slider" aria-describedby="tpHint"><div class="tp-nums" aria-hidden="true"></div><div class="tp-hand" aria-hidden="true"><i></i></div><div class="tp-center" aria-hidden="true"></div></div>
+    <div class="tp-clock" tabindex="0" role="slider" aria-describedby="tpHint"><div class="tp-ticks" aria-hidden="true">${Array.from({length:60},(_,i)=>i%5?`<i style="--a:${i*6}deg"></i>`:'').join('')}</div><div class="tp-nums" aria-hidden="true"></div><div class="tp-hand" aria-hidden="true"><i></i></div><div class="tp-center" aria-hidden="true"></div></div>
     <div class="seg tp-ampm" role="radiogroup" aria-label="AM or PM"><button type="button" role="radio" data-ap="AM">AM</button><button type="button" role="radio" data-ap="PM">PM</button></div>
     <div class="tp-foot">${had?'<button type="button" class="tp-clear" data-tp-clear>Clear time</button>':''}<span class="grow"></span><button type="button" class="ghost" data-tp-cancel>Cancel</button><button type="button" class="primary" data-tp-done>Done</button></div>
   </div>`;
@@ -76,7 +76,10 @@ function openTimePicker(field,{suggest}={}){
     clock.setAttribute('aria-valuemin',mode==='hour'?'1':'0');clock.setAttribute('aria-valuemax',mode==='hour'?'12':'59');
     clock.setAttribute('aria-valuenow',String(mode==='hour'?hour:minute));
     clock.setAttribute('aria-valuetext',`${hour}:${pad(minute)} ${ap}`);
-    tp.querySelector('#tpHint').textContent=mode==='hour'?'Pick the hour':'Pick the minutes · drag for exact minutes';
+    tp.querySelector('#tpHint').textContent=mode==='hour'?'Tap the hour, or type it':'Tap between numbers for exact minutes';
+    clock.classList.toggle('is-minute',mode==='minute');
+    const unit=mode==='hour'?'hour':'minute';
+    tp.querySelector('[data-step="-1"]').setAttribute('aria-label',`One ${unit} earlier`);tp.querySelector('[data-step="1"]').setAttribute('aria-label',`One ${unit} later`);
     tp.querySelectorAll('.tp-ampm button').forEach(b=>{const on=b.dataset.ap===ap;b.classList.toggle('active',on);b.setAttribute('aria-checked',String(on))});
   }
   function setMode(m){
@@ -90,18 +93,39 @@ function openTimePicker(field,{suggest}={}){
     const r=clock.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
     const deg=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
     if(mode==='hour')hour=Math.round(deg/30)%12||12;
-    else{let m=Math.round(deg/6)%60;if(snap)m=Math.round(m/5)*5%60;minute=m}
+    else{
+      let m=Math.round(deg/6)%60;
+      // A tap on a number (00, 05 … 55) picks that number; a tap anywhere else picks the exact minute.
+      if(snap){const near=Math.round(m/5)*5%60,a=near*6*Math.PI/180,R=r.width/2-26;
+        if(Math.hypot(dx-R*Math.sin(a),dy+R*Math.cos(a))<=14)m=near}
+      minute=m;
+    }
     update();
   }
-  // Tap a number to pick it (minutes snap to 5); drag round the face for exact minutes.
+  function step(n){if(mode==='hour')hour=((hour-1+n)%12+12)%12+1;else minute=((minute+n)%60+60)%60;update()}
+  // Typing: hour "6" or "1","1"; minutes "2","3" → :23. Digits typed within ~1s of each other combine.
+  let typed='',typedAt=0;
+  function typeDigit(d){
+    if(Date.now()-typedAt>1200)typed='';typedAt=Date.now();typed+=d;
+    if(mode==='hour'){
+      if(typed.length===1){if(d==='0'){typed='';return}hour=+d;update();if(d!=='1'){typed='';setMode('minute')}return}
+      const n=+typed;hour=n>=10&&n<=12?n:(+d||hour);typed='';update();setMode('minute');
+    }else{
+      if(typed.length===1){minute=+d;update();return}
+      const n=+typed;minute=n<=59?n:+d;typed='';update();
+    }
+  }
+  tp.addEventListener('keydown',e=>{if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();typeDigit(e.key)}});
+  tp.querySelectorAll('.tp-step').forEach(b=>b.onclick=()=>step(+b.dataset.step));
+  // Tap a number to pick it, tap between numbers for an exact minute, or drag round the face.
   clock.addEventListener('pointerdown',e=>{e.preventDefault();clock.focus();try{clock.setPointerCapture(e.pointerId)}catch{}drag={x:e.clientX,y:e.clientY,moved:false};clock.classList.add('is-dragging');pick(e,false)});
   clock.addEventListener('pointermove',e=>{if(!drag)return;if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6)drag.moved=true;pick(e,false)});
   const endDrag=(e,apply)=>{if(!drag)return;if(apply)pick(e,!drag.moved);drag=null;clock.classList.remove('is-dragging');if(apply&&mode==='hour')setTimeout(()=>{if(layer.isConnected)setMode('minute')},180)};
   clock.addEventListener('pointerup',e=>endDrag(e,true));
   clock.addEventListener('pointercancel',e=>endDrag(e,false));
   clock.addEventListener('keydown',e=>{
-    const step={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1,PageUp:5,PageDown:-5}[e.key];
-    if(step){e.preventDefault();if(mode==='hour')hour=((hour-1+(Math.abs(step)===5?Math.sign(step):step))%12+12)%12+1;else minute=((minute+step)%60+60)%60;update();return}
+    const by={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1,PageUp:5,PageDown:-5}[e.key];
+    if(by){e.preventDefault();step(mode==='hour'?Math.sign(by):by);return}
     if(e.key==='Enter'||e.key===' '){e.preventDefault();if(mode==='hour')setMode('minute');else tp.querySelector('[data-tp-done]').focus()}
   });
   tp.querySelectorAll('.tp-part').forEach(b=>b.onclick=()=>{setMode(b.dataset.part);clock.focus()});
