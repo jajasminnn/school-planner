@@ -21,6 +21,7 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 | `login.html`, `login.js` | Sign in, create an account, reset a password. |
 | `app.html`, `app.js`, `styles.css` | The planner itself. Only shown to signed-in users. |
 | `firebase-config.js` | Firebase project settings; sets up Authentication (and Firestore on pages that load it). |
+| `session.js` | Signs a user out 30 days after they signed in on that browser. |
 | `firestore.rules` | Firestore security rules to publish in the Firebase Console. |
 | `sw.js`, `manifest.json` | Service worker (offline cache) and app manifest. |
 | `logo.png`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | JASync logo, browser tab icon and home-screen icons. |
@@ -31,7 +32,7 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 1. A signed-out visitor opening the site sees only the landing page.
 2. **Get Started** opens the login page on *Create account*; **Sign In** opens it on *Log in*.
 3. After signing in, the visitor is taken to the Dashboard (`app.html`).
-4. Signed-in visitors who open the site go straight to the Dashboard. Firebase keeps the session across refreshes and browser restarts.
+4. Signed-in visitors who open the site go straight to the Dashboard. They stay signed in on that browser across refreshes and restarts for **30 days** from when they signed in there. After that they are signed out and asked to sign in again (the login page explains why). Each browser or device has its own 30 days, and opening the app does not extend it; signing in again does.
 5. `app.html` stays hidden until Firebase confirms a signed-in user. Anyone signed out is sent back to the landing page. If they asked for a specific view (for example `app.html#tasks`), it is remembered and opened after login.
 6. **Sign out** clears the planner from the page and returns to the landing page. The Back button cannot bring the Dashboard back.
 

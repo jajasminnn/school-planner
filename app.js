@@ -180,7 +180,7 @@ function openApp(){
 }
 // Hide and wipe the planner, then send the visitor to the public landing page.
 // keepDestination remembers the page they tried to open so login can return them there.
-function leaveApp(keepDestination){
+function leaveApp(keepDestination,page='index.html'){
   if(leaving)return;
   leaving=true;appOpen=false;
   ++authSeq;
@@ -192,7 +192,17 @@ function leaveApp(keepDestination){
   $('#modalRoot').innerHTML='';
   try{localStorage.removeItem(SESSION_HINT)}catch{}
   const dest=VIEWS.includes(location.hash.slice(1))?'app.html'+location.hash:'app.html';
-  location.replace(keepDestination?'index.html?next='+encodeURIComponent(dest):'index.html');
+  location.replace(keepDestination?page+(page.includes('?')?'&':'?')+'next='+encodeURIComponent(dest):page);
+}
+// 30 days after signing in on this browser (see session.js): save anything pending, sign out,
+// and send the user to the login page with a short explanation.
+let expiring=false;
+async function expireSession(user){
+  if(expiring)return;
+  expiring=true;
+  if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;await saveToCloud();}
+  await window.jasyncSession.endIfExpired(auth,user);
+  leaveApp(true,'login.html?expired=1');
 }
 function updateAuthUI(user){
   const btn=$('#authButton'), name=$('#workspaceName'), email=$('#workspaceEmail'), avatar=$('#userAvatar');
@@ -219,7 +229,9 @@ async function handleAuthClick(){
   if(auth.currentUser){
     try{
       if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;await saveToCloud();}
+      const uid=auth.currentUser.uid;
       await auth.signOut();
+      window.jasyncSession?.clear(uid);
       leaveApp(false);
     }catch(err){console.error(err);toast('Could not sign out.');}
     return;
@@ -232,9 +244,13 @@ function setupFirebaseAuth(){
   if(!auth){leaveApp(true);return;}
   setSaveStatus('Loading…');
   auth.onAuthStateChanged(user=>{
-    if(!user)return leaveApp(true);
+    if(!user){if(expiring)return;return leaveApp(true);}
+    // Check the 30-day limit before loading or showing anything.
+    if(window.jasyncSession?.isExpired(user))return expireSession(user);
     if(user.uid!==cloudUser?.uid){loadCloudForUser(user);openApp();}
   });
+  // A tab left open can cross the 30-day mark; check again whenever the user comes back to it.
+  document.addEventListener('visibilitychange',()=>{const u=auth.currentUser;if(!document.hidden&&u&&window.jasyncSession?.isExpired(u))expireSession(u)});
   // Back/Forward can restore this page from the browser's page cache; re-check who is signed in.
   addEventListener('pageshow',e=>{if(e.persisted&&!auth.currentUser){leaving=false;leaveApp(false);}});
 }

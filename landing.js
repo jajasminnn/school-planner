@@ -19,8 +19,10 @@ const auth=window.schoolPlannerFirebase?.auth||null;
 if(!auth){showLanding();return;}
 // Never leave a returning visitor stuck on the splash if Firebase is slow.
 const fallback=setTimeout(showLanding,4000);
-auth.onAuthStateChanged(user=>{
+auth.onAuthStateChanged(async user=>{
   clearTimeout(fallback);
+  // Signed in on this browser for more than 30 days: sign out and stay on the landing page.
+  if(user&&window.jasyncSession&&await window.jasyncSession.endIfExpired(auth,user))user=null;
   if(user)location.replace(next||'app.html');
   else{
     try{localStorage.removeItem('jasync-session')}catch{}

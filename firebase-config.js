@@ -19,3 +19,6 @@ window.schoolPlannerFirebase = {
   auth: firebase.auth(),
   db: firebase.firestore ? firebase.firestore() : null
 };
+
+// Stay signed in on this browser across refreshes and restarts (session.js ends it after 30 days).
+window.schoolPlannerFirebase.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});

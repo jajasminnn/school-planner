@@ -12,6 +12,14 @@ const params=new URLSearchParams(location.search);
 const next=/^app\.html(#[a-z]+)?$/.test(params.get('next')||'')?params.get('next'):'app.html';
 const firebaseServices=window.schoolPlannerFirebase||{};
 const auth=firebaseServices.auth||null;
+const session=window.jasyncSession||null;
+// True while this page is completing a sign-in, so the auth listener starts a new 30-day session
+// instead of treating the user as an old (possibly expired) one.
+let signingIn=false;
+function finishSignIn(user){
+  if(user)session?.start(user.uid);
+  location.replace(next);
+}
 
 function authMessage(text,isError=true){
   const e=$('#authMessage');
@@ -52,9 +60,11 @@ async function signInWithGoogle(){
   try{
     const provider=new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({prompt:'select_account'});
-    await auth.signInWithPopup(provider);
-    location.replace(next);
+    signingIn=true;
+    const result=await auth.signInWithPopup(provider);
+    finishSignIn(result.user);
   }catch(err){
+    signingIn=false;
     console.error('Google sign-in failed:',err);
     if(err?.code==='auth/popup-blocked'){
       try{
@@ -87,10 +97,11 @@ async function handleEmailAuth(e){
   if(submit)submit.disabled=true;
   authMessage(register?'Creating your account…':'Signing you in…',false);
   try{
-    if(register)await auth.createUserWithEmailAndPassword(email,password);
-    else await auth.signInWithEmailAndPassword(email,password);
-    location.replace(next);
+    signingIn=true;
+    const cred=register?await auth.createUserWithEmailAndPassword(email,password):await auth.signInWithEmailAndPassword(email,password);
+    finishSignIn(cred.user);
   }catch(err){
+    signingIn=false;
     console.error('Email/password sign-in failed:',err);
     const info=authErrorMessage(err);
     authMessage('Error '+info.code+': '+info.message);
@@ -118,9 +129,24 @@ $('#emailAuthForm')?.addEventListener('submit',handleEmailAuth);
 $('#authForgot')?.addEventListener('click',sendPasswordReset);
 if(params.get('mode')==='register')setAuthMode('register');
 
+if(params.get('expired'))authMessage('You were signed out after 30 days. Please sign in again.',false);
+
 if(!auth){
   authMessage('Firebase could not be initialized.');
 }else{
-  auth.onAuthStateChanged(user=>{ if(user) location.replace(next); });
+  // A Google sign-in that fell back to a full-page redirect finishes here; start its 30 days before
+  // the listener below looks at the session.
+  auth.getRedirectResult()
+    .then(result=>{if(result?.user){signingIn=true;session?.start(result.user.uid)}})
+    .catch(err=>console.error('Google redirect sign-in failed:',err))
+    .finally(()=>{
+      auth.onAuthStateChanged(async user=>{
+        if(!user)return;
+        if(signingIn)return finishSignIn(user);
+        // Already signed in on this browser: go to the planner, unless the 30 days are up.
+        if(session&&await session.endIfExpired(auth,user)){authMessage('You were signed out after 30 days. Please sign in again.',false);return}
+        location.replace(next);
+      });
+    });
 }
 })();
