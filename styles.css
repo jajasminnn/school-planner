@@ -220,3 +220,55 @@ body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background
 .task-sheet .clock-field:hover,.task-sheet .clock-field:focus-visible{color:var(--accent)}
 .task-sheet .clock-field:hover svg,.task-sheet .clock-field:focus-visible svg{color:var(--accent)}
 .task-sheet .clock-field.is-empty:hover .clock-field-text{color:var(--accent)}
+/* Notes: List / Grid view switcher and the two layouts (same notes, same search and sort) */
+.notes-head{flex-wrap:wrap}
+.notes-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.notes-controls #notesSearch{min-width:170px}
+.notes-view-seg button{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.notes-view-seg button span{font-size:14px;line-height:1}
+.notes-view-seg button b{font-weight:650}
+.notes-view-seg button:hover{color:var(--ink)}
+.seg.notes-view-seg button.active{background:var(--accent);color:#fff}
+.notes-view-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.notes-view{animation:notesIn .15s ease-out}
+@keyframes notesIn{from{opacity:0}}
+[data-general][role="button"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note-pinned-badge{font-size:10px;font-weight:700;color:var(--warn)}
+body.dark .note-pinned-badge{color:#e8c874}
+.note-no-preview{font-style:italic;opacity:.7}
+/* List view: compact rows for scanning */
+.note-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.note-row{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line);cursor:pointer;transition:background-color .15s ease}
+.note-row:last-child{border-bottom:0}
+.note-row:hover{background:var(--panel2)}
+.note-row.pinned{background:linear-gradient(90deg,#fff9ec,var(--panel) 40%)}
+body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel) 45%)}
+.note-row-icon{font-size:16px;line-height:1.3;flex:none}
+.note-row-main{flex:1;min-width:0}
+.note-row-title{font-weight:750;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-row-preview{font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-row-meta{display:flex;align-items:center;gap:12px;margin-top:6px;color:var(--muted);font-size:11px}
+.note-row .pin-btn{font-size:16px;padding:4px 6px}
+/* Grid view: equal-height cards */
+.note-grid.notes-view{grid-auto-rows:1fr}
+.note-grid .note-card{display:flex;flex-direction:column;min-height:150px}
+.note-grid .note-card:hover{border-color:color-mix(in srgb,var(--accent) 35%,var(--line));box-shadow:0 10px 26px rgba(25,45,55,.1);transform:translateY(-2px)}
+.note-card-preview{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.note-grid .note-card-foot{margin-top:auto;padding-top:12px;gap:8px;flex-wrap:wrap}
+/* Empty states */
+.notes-empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.notes-empty-icon{font-size:34px;margin-bottom:8px}
+.notes-empty h3{margin:0 0 6px;color:var(--ink);font-size:17px}
+.notes-empty p{margin:0 0 16px;font-size:13px}
+@media(max-width:600px){
+  .notes-controls{width:100%}
+  .notes-controls #notesSearch{flex:1 1 100%;min-width:0}
+  .notes-view-seg button b{display:none}
+  .notes-view-seg button{padding:8px 12px}
+  .note-row-meta{flex-wrap:wrap;gap:4px 10px}
+}
+@media(prefers-reduced-motion:reduce){.notes-view{animation:none}.note-row,.notes-view-seg button{transition:none}}
+.note-doc-icon{width:16px;height:16px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.note-card .task-title .note-doc-icon{margin-right:6px}
+.note-row-icon{display:grid;place-items:center;padding-top:1px}
+.note-row:hover .note-doc-icon,.note-card:hover .note-doc-icon{stroke:var(--accent)}
