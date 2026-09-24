@@ -17,5 +17,5 @@ if (!firebase.apps.length) {
 
 window.schoolPlannerFirebase = {
   auth: firebase.auth(),
-  db: firebase.firestore()
+  db: firebase.firestore ? firebase.firestore() : null
 };

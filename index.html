@@ -2,51 +2,159 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#367e83"><meta name="description" content="A modern personal school planner for schedules, tasks and subject notebooks">
-<link rel="manifest" href="manifest.json"><title>JASync</title>
-<link rel="icon" type="image/png" href="logo.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="styles.css">
+<meta name="theme-color" content="#367e83"><meta name="description" content="JASync — sync your studies, tasks, and goals. Schedules, deadlines, subjects, notes, and study plans in one calm place.">
+<link rel="manifest" href="manifest.json"><title>JASync — Plan less. Study smarter.</title>
+<link rel="icon" type="image/png" href="logo.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="landing.css">
 </head>
 <body>
-<div class="app-shell">
-  <aside class="sidebar" id="sidebar">
-    <div class="brand"><img class="brand-mark" src="logo.png" alt="JASync logo"><div class="brand-text"><b>JASync</b><span>Sync your studies, tasks, and goals.</span></div><button class="icon-btn side-collapse" id="sideCollapse" aria-label="Collapse sidebar">‹</button></div>
-    <div class="workspace"><span class="avatar" id="userAvatar">J</span><div><b id="workspaceName">My Workspace</b><small id="workspaceEmail">Personal planner</small></div></div>
-    <nav class="nav" aria-label="Main navigation">
-      <button class="nav-item active" data-view="dashboard"><span>⌂</span><b>Dashboard</b></button>
-      <button class="nav-item" data-view="calendar"><span>▦</span><b>Calendar</b></button>
-      <button class="nav-item" data-view="tasks"><span>✓</span><b>Tasks</b><em id="overdueBadge" hidden>0</em></button>
-      <button class="nav-item" data-view="subjects"><span>▤</span><b>My Subjects</b></button>
-      <button class="nav-item" data-view="notes"><span>✎</span><b>Notes</b></button>
-    </nav>
-    <div class="sidebar-bottom">
-      <button class="nav-item" data-view="settings"><span>⚙</span><b>Settings</b></button>
-      <button class="auth-btn full" id="authButton" aria-label="Sign in" title="Sign in">Sign in</button>
-      <div class="save-indicator" id="saveIndicator"><i></i><span>Saved on this device</span></div>
+<script>
+/* Runs before first paint: apply the saved theme, and if this browser was signed in last time,
+   show the splash instead of flashing the landing page while Firebase confirms the session. */
+try{
+  var t=localStorage.getItem('school-planner-theme');
+  if(t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))document.body.classList.add('dark');
+  if(localStorage.getItem('jasync-session')==='1')document.body.classList.add('auth-pending');
+}catch(e){}
+</script>
+<div class="auth-splash" role="status"><img src="logo.png" alt=""><span>Opening your planner…</span></div>
+
+<div class="l-page">
+<header class="l-nav">
+  <div class="l-wrap l-nav-inner">
+    <a class="l-brand" href="#top" aria-label="JASync home"><img src="logo.png" alt=""><span>JASync</span></a>
+    <nav class="l-links" aria-label="Page sections"><a href="#features">Features</a><a href="#about">About</a></nav>
+    <div class="l-nav-cta">
+      <a class="l-btn l-btn-ghost l-nav-signin" data-auth="login" href="login.html">Sign In</a>
+      <a class="l-btn l-btn-primary" data-auth="register" href="login.html?mode=register">Get Started</a>
     </div>
-  </aside>
-  <div class="scrim" id="scrim"></div>
-  <main class="main">
-    <header class="topbar">
-      <div class="top-left"><button class="icon-btn mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button><div><span class="eyebrow" id="eyebrow">Overview</span><h1 id="pageTitle">Dashboard</h1></div></div>
-      <div class="top-actions"><button class="search-btn" id="globalSearchBtn">⌕ <span>Search</span><kbd>Ctrl K</kbd></button><button class="icon-btn" id="themeToggle" title="Toggle dark mode">☾</button><button class="primary small" id="quickAdd">+ Quick add</button></div>
-    </header>
-    <div class="content" id="content">
-      <section class="view active" id="view-dashboard"></section>
-      <section class="view" id="view-calendar"></section>
-      <section class="view" id="view-tasks"></section>
-      <section class="view" id="view-subjects"></section>
-      <section class="view" id="view-notes"></section>
-      <section class="view" id="view-settings"></section>
+  </div>
+</header>
+
+<main id="top">
+  <section class="l-hero">
+    <div class="l-wrap l-hero-grid">
+      <div class="l-hero-copy">
+        <span class="l-kicker"><i></i>Sync your studies, tasks, and goals.</span>
+        <h1>Plan less. <span>Study smarter.</span></h1>
+        <p class="l-lead">Your school life in one calm place — schedules, deadlines, subjects, notes, and study plans.</p>
+        <div class="l-cta-row">
+          <a class="l-btn l-btn-primary l-btn-lg" data-auth="register" href="login.html?mode=register">Get Started <span aria-hidden="true">→</span></a>
+          <a class="l-btn l-btn-ghost l-btn-lg" data-auth="login" href="login.html">Sign In</a>
+        </div>
+        <ul class="l-points">
+          <li>Works on your phone and laptop</li>
+          <li>Synced to your own account</li>
+          <li>Private to you</li>
+        </ul>
+      </div>
+
+      <!-- Illustrative preview of the planner (sample data, not a real account) -->
+      <div class="l-mock-wrap" aria-hidden="true">
+        <div class="l-mock">
+          <div class="l-mock-bar"><i></i><i></i><i></i><span>JASync · Dashboard</span></div>
+          <div class="l-mock-body">
+            <div class="l-mock-side">
+              <img src="logo.png" alt="">
+              <b class="on">⌂</b><b>▦</b><b>✓</b><b>▤</b><b>✎</b>
+            </div>
+            <div class="l-mock-main">
+              <div class="l-mock-hero">
+                <small>Thursday · Week 6</small>
+                <strong>Plan less. Study smarter. ✨</strong>
+              </div>
+              <div class="l-mock-stats">
+                <div><small>Open tasks</small><b>6</b></div>
+                <div><small>Due this week</small><b>3</b></div>
+                <div><small>Subjects</small><b>8</b></div>
+              </div>
+              <div class="l-mock-cards">
+                <div class="l-mock-card">
+                  <h4>Upcoming deadlines</h4>
+                  <div class="l-row"><i style="--c:#367e83"></i><p>Lab report<small>Chemistry</small></p><span class="pill warn">Today</span></div>
+                  <div class="l-row"><i style="--c:#5d7cc5"></i><p>Problem set 4<small>Calculus</small></p><span class="pill">2 days</span></div>
+                  <div class="l-row"><i style="--c:#c77b30"></i><p>Essay outline<small>Literature</small></p><span class="pill success">Done</span></div>
+                </div>
+                <div class="l-mock-card">
+                  <h4>This week</h4>
+                  <div class="l-week">
+                    <span>M</span><span>T</span><span>W</span><span class="today">T</span><span>F</span>
+                    <em style="--c:#367e83;grid-column:1;grid-row:2">Chem</em>
+                    <em style="--c:#5d7cc5;grid-column:2;grid-row:2">Calc</em>
+                    <em style="--c:#3b9270;grid-column:3;grid-row:3">Study</em>
+                    <em style="--c:#367e83;grid-column:4;grid-row:2">Lab</em>
+                    <em style="--c:#c45b64;grid-column:5;grid-row:3">Quiz</em>
+                    <em style="--c:#c77b30;grid-column:2;grid-row:3">Lit</em>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="l-float"><span>✓</span><p><b>Lab report submitted</b><small>2 tasks left this week</small></p></div>
+      </div>
     </div>
-  </main>
+  </section>
+
+  <section class="l-section" id="features">
+    <div class="l-wrap">
+      <div class="l-head">
+        <span class="eyebrow">Features</span>
+        <h2>Everything a school week needs</h2>
+        <p>Six tools that work together, so nothing slips through the cracks.</p>
+      </div>
+      <div class="l-features">
+        <article class="l-feature" style="--c:#367e83"><span class="l-icon">▦</span><h3>Calendar</h3><p>Month, week and agenda views for classes, exams and events. Repeat weekly classes and colour-code every subject.</p></article>
+        <article class="l-feature" style="--c:#c45b64"><span class="l-icon">✓</span><h3>Tasks</h3><p>Track activities, quizzes and projects with due dates, times, priorities and status. Overdue work is flagged for you.</p></article>
+        <article class="l-feature" style="--c:#5d7cc5"><span class="l-icon">▤</span><h3>My Subjects</h3><p>Every subject has its own notebook for lesson notes, with rich text, pinned lessons and file attachments.</p></article>
+        <article class="l-feature" style="--c:#c77b30"><span class="l-icon">✎</span><h3>Notes</h3><p>Quick notes for everything else — ideas, reminders and to-dos you can pin and find again with quick search.</p></article>
+        <article class="l-feature" style="--c:#3b9270"><span class="l-icon">◷</span><h3>Study planning</h3><p>Block out study sessions on your calendar right beside your classes and deadlines, so every week has a plan.</p></article>
+        <article class="l-feature" style="--c:#aa8b32"><span class="l-icon">↗</span><h3>Progress tracking</h3><p>Your dashboard shows open tasks, what's due this week and what's coming up, so you always know where you stand.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="l-section l-about" id="about">
+    <div class="l-wrap l-about-grid">
+      <div class="l-about-copy">
+        <span class="eyebrow">About JASync</span>
+        <h2>Everything in one place</h2>
+        <p>School doesn't happen in separate apps. Your class schedule decides when you can study, deadlines decide what comes first, and your notes belong with the subject they're for.</p>
+        <p>JASync keeps all of it together and connected, so you spend less time organizing and more time learning.</p>
+        <div class="l-sync-note"><img src="logo.png" alt=""><p><b>Synced to your account</b>Open it on your phone or laptop and pick up right where you left off.</p></div>
+      </div>
+      <ol class="l-steps">
+        <li><span>1</span><div><h3>Add your subjects</h3><p>Each one gets its own colour and notebook.</p></div></li>
+        <li><span>2</span><div><h3>Put your week on the calendar</h3><p>Classes, exams and study sessions, with task deadlines alongside.</p></div></li>
+        <li><span>3</span><div><h3>Check off what's done</h3><p>The dashboard keeps what's next in view.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="l-section">
+    <div class="l-wrap">
+      <div class="l-final">
+        <h2>Ready to get your school life organized?</h2>
+        <p>Create your account and start with a clean, calm planner.</p>
+        <a class="l-btn l-btn-light l-btn-lg" data-auth="register" href="login.html?mode=register">Get Started <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="l-footer">
+  <div class="l-wrap l-footer-inner">
+    <div class="l-brand"><img src="logo.png" alt=""><span>JASync</span></div>
+    <p>Sync your studies, tasks, and goals.</p>
+    <small>© 2026 JASync</small>
+  </div>
+</footer>
 </div>
-<div id="modalRoot"></div>
-<div class="toast" id="toast"></div>
+
 <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js"></script>
+<script src="landing.js"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});}</script>
 </body>
 </html>

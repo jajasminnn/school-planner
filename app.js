@@ -156,14 +156,33 @@ async function loadCloudForUser(user){
     refreshUI();
   }
 }
-function showGuest(){
+/* ---- Auth gate: the planner is only rendered for a signed-in user ---- */
+const SESSION_HINT='jasync-session';
+const VIEWS=['dashboard','calendar','tasks','subjects','notes','settings'];
+let appOpen=false, leaving=false;
+function openApp(){
+  if(appOpen)return;
+  appOpen=true;
+  try{localStorage.setItem(SESSION_HINT,'1')}catch{}
+  const v=location.hash.slice(1);
+  setView(VIEWS.includes(v)?v:'dashboard');
+  document.body.classList.remove('auth-pending');
+}
+// Hide and wipe the planner, then send the visitor to the public landing page.
+// keepDestination remembers the page they tried to open so login can return them there.
+function leaveApp(keepDestination){
+  if(leaving)return;
+  leaving=true;appOpen=false;
   ++authSeq;
   cloudUser=null;cloudLoaded=false;
   clearTimeout(cloudSaveTimer);cloudSaveTimer=null;
-  updateAuthUI(null);
-  applyData(readLocal(GUEST_KEY));
-  refreshUI();
-  setSaveStatus('Saved on this device');
+  document.body.classList.add('auth-pending');
+  applyData(null);
+  $$('.view').forEach(v=>v.innerHTML='');
+  $('#modalRoot').innerHTML='';
+  try{localStorage.removeItem(SESSION_HINT)}catch{}
+  const dest=VIEWS.includes(location.hash.slice(1))?'app.html'+location.hash:'app.html';
+  location.replace(keepDestination?'index.html?next='+encodeURIComponent(dest):'index.html');
 }
 function updateAuthUI(user){
   const btn=$('#authButton'), name=$('#workspaceName'), email=$('#workspaceEmail'), avatar=$('#userAvatar');
@@ -191,8 +210,7 @@ async function handleAuthClick(){
     try{
       if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;await saveToCloud();}
       await auth.signOut();
-      showGuest();
-      toast('Signed out.');
+      leaveApp(false);
     }catch(err){console.error(err);toast('Could not sign out.');}
     return;
   }
@@ -201,12 +219,14 @@ async function handleAuthClick(){
 function setupFirebaseAuth(){
   updateAuthUI(auth?.currentUser||null);
   $('#authButton')?.addEventListener('click',handleAuthClick);
-  if(!auth){showGuest();setSaveStatus('Firebase unavailable');return;}
+  if(!auth){leaveApp(true);return;}
   setSaveStatus('Loading…');
   auth.onAuthStateChanged(user=>{
-    if(user){if(user.uid!==cloudUser?.uid)loadCloudForUser(user);}
-    else showGuest();
+    if(!user)return leaveApp(true);
+    if(user.uid!==cloudUser?.uid){loadCloudForUser(user);openApp();}
   });
+  // Back/Forward can restore this page from the browser's page cache; re-check who is signed in.
+  addEventListener('pageshow',e=>{if(e.persisted&&!auth.currentUser){leaving=false;leaveApp(false);}});
 }
 function migrate(){let old={}; try{for(const [k,v] of Object.entries(OLD)){const x=JSON.parse(localStorage.getItem(v)||'null'); if(x)old[k]=x}}catch{}; if(old.calendar)state.calendar=old.calendar; if(old.tasks){state.tasks=old.tasks;state.settings.subjects=(old.tasks.meta?.subjects||[]).map(x=>({id:x.id,name:x.name||''}))}; if(old.notes){state.notes={notes:old.notes.notes||[],subjects:{}}; (old.notes.folders||[]).forEach(f=>{state.notes.subjects[f.id]={id:f.id,name:f.name,body:''}})}; if(!state.settings.subjects?.length){state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}))}}
 // Startup shows a blank planner, then loads the signed-in account's own data (or the guest planner when signed out).
@@ -510,5 +530,5 @@ if(attachInput){
  return;
 }
 if(e.target.id==='accentColor'){state.settings.accent=e.target.value;applyAccentColor(state.settings.accent);save();return}if(e.target.id==='notesSort'){$('#view-notes').dataset.sort=e.target.value;renderNotes();return}if(e.target.id==='lessonSort'){$('#view-subjects').dataset.lsort=e.target.value;renderNotebook();return}if(e.target.id==='calendarShowTasks'){state.calendar.showTasks=e.target.checked;save();renderCalendar();return}const fieldCell=e.target.closest('[data-field]');if(fieldCell&&(fieldCell.tagName==='SELECT'||fieldCell.type==='date')){const tr=fieldCell.closest('tr[data-task-id]');if(tr){const t=state.tasks.tasks.find(x=>x.id===tr.dataset.taskId);if(t){const f=fieldCell.dataset.field;if(f==='submission'){const val=fieldCell.value;if(val==='Other')t.submission=t.submission&&!SUBMISSION_TYPES.includes(t.submission)?t.submission:'';else t.submission=val;save();const cell=tr.querySelector('.submission-cell');if(cell){cell.outerHTML=submissionCellHtml(t,val==='Other');if(val==='Other'){const oi=tr.querySelector('[data-field="submissionOther"]');if(oi)oi.focus()}}return}t[f]=fieldCell.value;save();renderTasks()}}return}if(e.target.id==='taskStatus'){const r=$('#view-tasks');r.dataset.status=e.target.value;renderTasks()}if(e.target.id==='taskPriority'){const r=$('#view-tasks');r.dataset.pri=e.target.value;renderTasks()}if(e.target.id==='restoreFile'&&e.target.files[0]){const fr=new FileReader();fr.onload=()=>{try{const x=JSON.parse(fr.result);Object.assign(state,x);if(!state.settings.accent)state.settings.accent='#367e83';syncSubjects();applyAccentColor(state.settings.accent);save();render();toast('Backup restored')}catch{toast('That backup file is not valid.')}};fr.readAsText(e.target.files[0])}});
-applyData(null);wire();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);applyAccentColor(state.settings.accent);setView('dashboard');setupFirebaseAuth();
+applyData(null);wire();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);applyAccentColor(state.settings.accent);setupFirebaseAuth();
 })();

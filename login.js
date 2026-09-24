@@ -7,7 +7,9 @@ try{
   document.body.classList.toggle('dark',dark);
 }catch{}
 
-const next=new URLSearchParams(location.search).get('next')||'index.html';
+const params=new URLSearchParams(location.search);
+// Only ever return to the planner itself (optionally a view like app.html#tasks), never an outside URL.
+const next=/^app\.html(#[a-z]+)?$/.test(params.get('next')||'')?params.get('next'):'app.html';
 const firebaseServices=window.schoolPlannerFirebase||{};
 const auth=firebaseServices.auth||null;
 
@@ -51,7 +53,7 @@ async function signInWithGoogle(){
     const provider=new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({prompt:'select_account'});
     await auth.signInWithPopup(provider);
-    location.href=next;
+    location.replace(next);
   }catch(err){
     console.error('Google sign-in failed:',err);
     if(err?.code==='auth/popup-blocked'){
@@ -87,7 +89,7 @@ async function handleEmailAuth(e){
   try{
     if(register)await auth.createUserWithEmailAndPassword(email,password);
     else await auth.signInWithEmailAndPassword(email,password);
-    location.href=next;
+    location.replace(next);
   }catch(err){
     console.error('Email/password sign-in failed:',err);
     const info=authErrorMessage(err);
@@ -114,10 +116,11 @@ document.querySelectorAll('.auth-tab').forEach(b=>b.addEventListener('click',()=
 $('#googleAuthBtn')?.addEventListener('click',signInWithGoogle);
 $('#emailAuthForm')?.addEventListener('submit',handleEmailAuth);
 $('#authForgot')?.addEventListener('click',sendPasswordReset);
+if(params.get('mode')==='register')setAuthMode('register');
 
 if(!auth){
   authMessage('Firebase could not be initialized.');
 }else{
-  auth.onAuthStateChanged(user=>{ if(user) location.href=next; });
+  auth.onAuthStateChanged(user=>{ if(user) location.replace(next); });
 }
 })();
