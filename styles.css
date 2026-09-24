@@ -224,12 +224,12 @@ body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background
 .notes-head{flex-wrap:wrap}
 .notes-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .notes-controls #notesSearch{min-width:170px}
-.notes-view-seg button{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;cursor:pointer;transition:background-color .15s ease,color .15s ease}
-.notes-view-seg button span{font-size:14px;line-height:1}
-.notes-view-seg button b{font-weight:650}
-.notes-view-seg button:hover{color:var(--ink)}
-.seg.notes-view-seg button.active{background:var(--accent);color:#fff}
-.notes-view-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.view-seg button{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.view-seg button span{font-size:14px;line-height:1}
+.view-seg button b{font-weight:650}
+.view-seg button:hover{color:var(--ink)}
+.seg.view-seg button.active{background:var(--accent);color:#fff}
+.view-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .notes-view{animation:notesIn .15s ease-out}
 @keyframes notesIn{from{opacity:0}}
 [data-general][role="button"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -263,12 +263,25 @@ body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel)
 @media(max-width:600px){
   .notes-controls{width:100%}
   .notes-controls #notesSearch{flex:1 1 100%;min-width:0}
-  .notes-view-seg button b{display:none}
-  .notes-view-seg button{padding:8px 12px}
+  .view-seg button b{display:none}
+  .view-seg button{padding:8px 12px}
   .note-row-meta{flex-wrap:wrap;gap:4px 10px}
 }
-@media(prefers-reduced-motion:reduce){.notes-view{animation:none}.note-row,.notes-view-seg button{transition:none}}
+@media(prefers-reduced-motion:reduce){.notes-view{animation:none}.note-row,.view-seg button{transition:none}}
 .note-doc-icon{width:16px;height:16px;flex:none;fill:none;stroke:var(--muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
 .note-card .task-title .note-doc-icon{margin-right:6px}
 .note-row-icon{display:grid;place-items:center;padding-top:1px}
 .note-row:hover .note-doc-icon,.note-card:hover .note-doc-icon{stroke:var(--accent)}
+/* My Subjects overview: search / sort / List | Grid (list rows reuse the Notes list styles) */
+.subjects-controls .input{min-width:200px}
+.subject-row{align-items:center}
+.subject-row-badge{width:32px;height:32px;flex:none;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;background:var(--subject-color,var(--accent))}
+.subject-row .pill{flex:none}
+.subject-row-go{flex:none;color:var(--muted);font-size:20px;line-height:1;padding:0 2px;transition:transform .15s ease,color .15s ease}
+.subject-row:hover .subject-row-go{color:var(--accent);transform:translateX(2px)}
+.subject-row .note-row-meta{margin-top:3px}
+[data-subject][role="button"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:600px){
+  .subjects-controls .input{flex:1 1 100%;min-width:0}
+  .subject-row .pill{display:none}
+}
