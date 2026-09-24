@@ -10,6 +10,10 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 - **Tasks:** per-subject task sheets with type, due date and time, priority, status and submission method; overdue tasks are flagged in the sidebar
 - **My Subjects:** a notebook for each subject with rich-text lesson notes, pinned lessons and file attachments
 - **Notes:** general notes you can pin and sort
+- **Saving notes:** lessons and notes autosave as you type. Each also has a **Save** button (or Ctrl/⌘ + S) that uploads right away and confirms with "✓ Saved", plus a **Close** button next to it at the bottom.
+- **Pin and Delete:** small Pin (☆/★) and trash buttons sit beside the lesson or note title. Deleting always asks "Delete this lesson?" / "Delete this note?" first, and only deletes after you confirm.
+- **Collapsible sidebar:** the sidebar folds into an icon-only rail with a toggle that stays visible in both states. Icons show their names on hover or keyboard focus, overdue tasks show as a dot on the Tasks icon, and the collapsed/expanded choice is remembered on each device.
+- **Stay signed in:** you stay signed in on your browser for 30 days, so you don't have to sign in every time you open JASync (see [Sign-in flow](#sign-in-flow)).
 - **Search** across the planner (Ctrl K), light/dark/system theme, accent colour, backup and restore to a JSON file
 - Installable as an app (PWA) with offline caching
 
@@ -54,6 +58,7 @@ In **Firestore Database → Rules**, replace the rules with the contents of `fir
 - A new account always starts with a blank planner.
 - File attachments in subject notebooks are stored only on the device where they were added (IndexedDB). They are not uploaded to the cloud.
 - Planner data from before accounts had separate storage is only offered to the original owner account, set as `LEGACY_OWNER_EMAIL` in `app.js`.
+- A few per-device settings live only in the browser's local storage: the sidebar's collapsed state (`jasync-sidebar-collapsed`), when the user signed in on this browser (`jasync-signin:{USER_UID}`), and the theme (`school-planner-theme`).
 
 ## Running and deploying
 - **Publish:** push to the `main` branch; GitHub Pages serves the repository root. Keep the files at the root, not in a subfolder.
