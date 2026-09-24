@@ -7,7 +7,7 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 ## Features
 - **Dashboard:** open tasks, what's due this week, subjects and upcoming events at a glance
 - **Calendar:** month, week and agenda views; events with start/end times, notes and colours; repeat daily, weekly, every other week, monthly or yearly; task deadlines can be shown on the calendar
-- **Tasks:** per-subject task sheets with type, due date and time, priority, status and submission method; overdue tasks are flagged in the sidebar
+- **Tasks:** per-subject task sheets with type, date assigned, due date, deadline time, priority, status and submission method; overdue tasks are flagged in the sidebar. The **Deadline** column shows a compact time (e.g. 🕐 7:30 PM, or "Set time") that opens the clock time picker when clicked.
 - **My Subjects:** a notebook for each subject with rich-text lesson notes, pinned lessons and file attachments
 - **Notes:** general notes you can pin and sort
 - **Saving notes:** lessons and notes autosave as you type. Each also has a **Save** button (or Ctrl/⌘ + S) that uploads right away and confirms with "✓ Saved", plus a **Close** button next to it at the bottom.
