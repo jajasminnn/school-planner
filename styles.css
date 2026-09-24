@@ -178,3 +178,5 @@ body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background
 @media(prefers-reduced-motion:reduce){.lesson-action,.danger-solid{transition:none}}
 /* Notes popup uses the same header; let its actions wrap under "Last edited" on narrow screens too */
 .note-modal .modal-body{container-type:inline-size}
+/* Lesson footer: Close + Save at the bottom, matching the Notes popup footer */
+.lesson-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
