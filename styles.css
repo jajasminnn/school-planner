@@ -146,3 +146,33 @@ body.dark .side-tip{background:#edf4f4;color:#101619}
 @media(prefers-reduced-motion:reduce){.sidebar,.main,.side-collapse,.side-collapse svg,.brand,.side-tip{transition:none}}
 /* Save buttons in the lesson notebook and note editor */
 .notebook-top .grow{flex:1}.save-note-btn{min-width:74px;transition:background-color .15s ease}.save-note-btn.is-saved{background:var(--success);box-shadow:none}.save-note-btn:disabled{opacity:.75;cursor:progress}
+/* Lesson header: title + "Last edited" lead; Pin and Delete are quiet secondary actions beside the title */
+.notebook-main{container-type:inline-size}
+.lesson-head{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title actions" "meta .";column-gap:16px;align-items:center;margin-bottom:12px}
+.lesson-head .note-editor-title{grid-area:title;min-width:0}
+.lesson-meta{grid-area:meta;color:var(--muted);font-size:11px;margin-top:5px}
+.lesson-actions{grid-area:actions;display:flex;align-items:center;gap:4px}
+.lesson-action{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;transition:background-color .15s ease,color .15s ease,border-color .15s ease}
+.lesson-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lesson-pin span{font-size:14px;line-height:1}
+.lesson-pin:hover{background:var(--panel2);border-color:var(--line);color:var(--ink)}
+.lesson-pin.active{background:#fff4dc;border-color:#f0dba8;color:var(--warn)}
+body.dark .lesson-pin.active{background:#3a3013;border-color:#5a4a1f;color:#e8c874}
+.lesson-delete{width:32px;padding:0}
+.lesson-delete svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.lesson-delete:hover,.lesson-delete:focus-visible{background:#fbeaea;border-color:#f2d0d0;color:var(--danger)}
+body.dark .lesson-delete:hover,body.dark .lesson-delete:focus-visible{background:#3a2022;border-color:#5a2c30;color:#f08a8a}
+/* Narrow notebook: actions move to their own row under "Last edited", with larger tap targets */
+@container (max-width:440px){
+  .lesson-head{grid-template-columns:minmax(0,1fr);grid-template-areas:"title" "meta" "actions"}
+  .lesson-actions{margin-top:10px;gap:8px}
+  .lesson-action{height:40px}.lesson-delete{width:40px}
+}
+/* Delete confirmation */
+.modal-confirm{width:min(400px,100%)}
+.confirm-text{margin:0 0 6px;font-weight:650}
+.confirm-detail{margin:0;color:var(--muted);font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.danger-solid{border:0;background:var(--danger);color:#fff;border-radius:11px;padding:10px 14px;font-weight:750;cursor:pointer;transition:filter .15s ease}
+.danger-solid:hover{filter:brightness(.92)}
+.modal-confirm .modal-foot button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.lesson-action,.danger-solid{transition:none}}
