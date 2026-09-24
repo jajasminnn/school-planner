@@ -1,61 +1,60 @@
-# School Planner — Modern V2 + Firebase Cloud Sync
+# JASync
 
-This version is based directly on **School Planner Modern V2 Calendar Fixed**. The existing planner UI and features are preserved while adding Firebase Authentication and Cloud Firestore sync.
+**Sync your studies, tasks, and goals.**
 
-## Existing planner features preserved
-- Dashboard
-- Calendar: Month, Week and Agenda views
-- Add/edit/delete calendar events
-- Recurring events, including Every other week (14 days)
-- Event colors, start/end times and notes
-- Task deadlines shown on the calendar
-- Task tracker with subject sheets
-- Eight subject spaces with lesson notebooks
-- General notes
-- Search
-- Collapsible desktop sidebar + mobile sidebar
-- Light/dark/system theme
-- Backup/restore
-- Local autosave
-- PWA support
+JASync is a personal school planner: schedules, deadlines, subjects, notes, and study plans in one calm place. It is a static website (plain HTML, CSS and JavaScript, no build step) that uses Firebase for sign-in and cloud sync, and is published with GitHub Pages.
 
-## Firebase connection
-The browser loads the Firebase Web SDK and initializes it from `firebase-config.js`.
+## Features
+- **Dashboard:** open tasks, what's due this week, subjects and upcoming events at a glance
+- **Calendar:** month, week and agenda views; events with start/end times, notes and colours; repeat daily, weekly, every other week, monthly or yearly; task deadlines can be shown on the calendar
+- **Tasks:** per-subject task sheets with type, due date and time, priority, status and submission method; overdue tasks are flagged in the sidebar
+- **My Subjects:** a notebook for each subject with rich-text lesson notes, pinned lessons and file attachments
+- **Notes:** general notes you can pin and sort
+- **Search** across the planner (Ctrl K), light/dark/system theme, accent colour, backup and restore to a JSON file
+- Installable as an app (PWA) with offline caching
 
-Firebase Authentication uses Google Sign-In. After the user signs in, the planner loads or creates this Firestore document:
+## Pages and files
 
-`users/{USER_UID}/planner/main`
+| File | Purpose |
+|---|---|
+| `index.html`, `landing.css`, `landing.js` | Public landing page. Signed-in visitors are sent straight to the planner. |
+| `login.html`, `login.js` | Sign in, create an account, reset a password. |
+| `app.html`, `app.js`, `styles.css` | The planner itself. Only shown to signed-in users. |
+| `firebase-config.js` | Firebase project settings; sets up Authentication (and Firestore on pages that load it). |
+| `firestore.rules` | Firestore security rules to publish in the Firebase Console. |
+| `sw.js`, `manifest.json` | Service worker (offline cache) and app manifest. |
+| `logo.png`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | JASync logo, browser tab icon and home-screen icons. |
 
-The document contains the planner's calendar, tasks, notes and settings as one synchronized data set.
+`shared.js`, `calendar.js`, `tasks.js` and `notes.js` are left over from an older multi-page version and are not loaded by any page.
 
-## IMPORTANT: Firestore Security Rules
+## Sign-in flow
+1. A signed-out visitor opening the site sees only the landing page.
+2. **Get Started** opens the login page on *Create account*; **Sign In** opens it on *Log in*.
+3. After signing in, the visitor is taken to the Dashboard (`app.html`).
+4. Signed-in visitors who open the site go straight to the Dashboard. Firebase keeps the session across refreshes and browser restarts.
+5. `app.html` stays hidden until Firebase confirms a signed-in user. Anyone signed out is sent back to the landing page. If they asked for a specific view (for example `app.html#tasks`), it is remembered and opened after login.
+6. **Sign out** clears the planner from the page and returns to the landing page. The Back button cannot bring the Dashboard back.
 
-The file `firestore.rules` contains the intended rules. In Firebase Console, open:
+## Firebase setup
 
-**Firestore Database → Rules**
+### Authentication
+In **Firebase Console → Authentication → Sign-in method**, enable:
+- **Google**
+- **Email/Password**
 
-Replace the rules there with the contents of `firestore.rules`, then click **Publish**.
+Add the GitHub Pages hostname under **Authentication → Settings → Authorized domains**. `localhost` is allowed by default for local testing.
 
-These rules allow an authenticated user to read/write only their own planner document and deny other access.
+### Firestore security rules
+In **Firestore Database → Rules**, replace the rules with the contents of `firestore.rules` and click **Publish**. They let a signed-in user read and write only their own planner and deny everything else.
 
-## Google Sign-In
+## Data storage
+- Each account's planner is one Firestore document: `users/{USER_UID}/planner/main`. It holds the calendar, tasks, notes and settings, plus an `owner` field with the account's UID.
+- A copy is also kept in the browser's local storage per account (`school-planner-v2:{USER_UID}`), so accounts that share a device never see each other's data.
+- A new account always starts with a blank planner.
+- File attachments in subject notebooks are stored only on the device where they were added (IndexedDB). They are not uploaded to the cloud.
+- Planner data from before accounts had separate storage is only offered to the original owner account, set as `LEGACY_OWNER_EMAIL` in `app.js`.
 
-Google Sign-In must be enabled under:
-
-**Firebase Console → Authentication → Sign-in method → Google**
-
-When the website is published on GitHub Pages, add the GitHub Pages hostname under Firebase Authentication's **Authorized domains** if Firebase asks you to do so.
-
-## GitHub Pages
-
-Upload the website files directly to the repository root. Do not put the files inside another folder if the repository is being used as the Pages root.
-
-The Firebase CDN scripts require an internet connection, so the first cloud-sync test should be done from the published HTTPS website (or another local web server), not by double-clicking `index.html` as a `file://` page.
-
-## Data behavior
-
-- Before Google Sign-In, the planner continues to work with local browser storage.
-- After Google Sign-In, Firestore becomes the cloud copy for that Google account.
-- If that account has no cloud planner yet, the current local planner data is uploaded as its first cloud copy.
-- Existing cloud data is loaded back into the planner when that account signs in.
-- Local storage remains as a fallback/backup on the device.
+## Running and deploying
+- **Publish:** push to the `main` branch; GitHub Pages serves the repository root. Keep the files at the root, not in a subfolder.
+- **Test locally:** use a local web server (for example `python -m http.server`) and open `http://localhost:8000/`. Opening the files directly as `file://` pages does not work with Firebase.
+- **After changing files:** bump the `CACHE` name in `sw.js` so returning visitors get the new version. The service worker checks the server for the page, script and style files on every load, so updates appear on the next reload.
