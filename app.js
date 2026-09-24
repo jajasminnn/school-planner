@@ -417,7 +417,7 @@ function renderNotebook(){
  const sorted=[...visible].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(lsort==='oldest'?1:-1)*((a.updated||0)-(b.updated||0)));
  const pinnedCount=sorted.filter(x=>x.pinned).length;
  const listHtml=sorted.length?sorted.map((x,i)=>`${i===0&&x.pinned?'<div class="list-divider">Pinned</div>':''}${pinnedCount>0&&i===pinnedCount&&!x.pinned?'<div class="list-divider">Other lessons</div>':''}<div class="note-item ${x.id===state.selectedNote?'active':''}" data-lesson="${x.id}" tabindex="0" role="button"><div class="note-item-row"><b>${esc(x.title||'Untitled lesson')}</b><button type="button" class="pin-btn ${x.pinned?'active':''}" data-pin-lesson="${x.id}" title="${x.pinned?'Unpin':'Pin note'}">${x.pinned?'★':'☆'}</button></div><span>${esc(stripHtml(x.body).slice(0,65))}</span><small>${relTime(x.updated)}${(x.attachments||[]).length?' · 📎 '+x.attachments.length:''}</small></div>`).join(''):`<div class="empty">${q?'No lessons match your search.':'No lessons yet.'}</div>`;
- root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 12px;font-size:18px">${esc(s.name)}</h2><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span><button type="button" class="primary small save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta">${n.updated?'Last edited '+relTime(n.updated):''}</div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}"><span aria-hidden="true">${n.pinned?'★':'☆'}</span>${n.pinned?'Pinned':'Pin'}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
+ root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 12px;font-size:18px">${esc(s.name)}</h2><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span><button type="button" class="primary small save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta">${n.updated?'Last edited '+relTime(n.updated):''}</div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
 }
 function newLesson(){const s=state.settings.subjects.find(x=>x.id===state.selectedSubject);const nb=state.notes.subjects[s.id]||{id:s.id,name:s.name,notes:[]};nb.notes??=[];const n={id:uid('n'),title:'New lesson',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};nb.notes.unshift(n);state.notes.subjects[s.id]=nb;state.selectedNote=n.id;const root=$('#view-subjects');if(root)root.dataset.lquery='';save();renderNotebook();setTimeout(()=>$('#lessonTitle')?.focus(),0)}
 async function saveLesson(){
@@ -433,30 +433,41 @@ async function saveLesson(){
   if(again&&ok){again.textContent='✓ Saved';again.classList.add('is-saved');setTimeout(()=>{if(again.isConnected){again.textContent='Save';again.classList.remove('is-saved')}},1600)}
   if(ok)toast('Lesson saved');
 }
-// Deleting a lesson is permanent, so ask first. Focus starts on Cancel; Escape, × and the backdrop also cancel.
-function confirmDeleteLesson(){
-  const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);if(!n)return;
-  const opener=$('[data-delete-lesson]'),files=(n.attachments||[]).length;
-  openModal('Delete this lesson?',
-    `<p class="confirm-text">This action cannot be undone.</p><p class="confirm-detail">“${esc(n.title||'Untitled lesson')}”${files?` and its ${files} attached file${files>1?'s':''}`:''} will be permanently removed.</p>`,
-    `<button type="button" class="ghost" data-close>Cancel</button><button type="button" class="danger-solid" id="confirmDeleteLesson">Delete lesson</button>`);
+/* ---- Shared Pin / Delete pieces for lesson notes and general notes ---- */
+const TRASH_ICON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+const pinLabelHtml=pinned=>`<span aria-hidden="true">${pinned?'★':'☆'}</span>${pinned?'Pinned':'Pin'}`;
+const deleteDetail=(n,fallback)=>{const files=(n.attachments||[]).length;return `“${esc(n.title||fallback)}”${files?` and its ${files} attached file${files>1?'s':''}`:''} will be permanently removed.`};
+// Deleting is permanent, so ask first. Focus starts on Cancel; Escape, × and the backdrop also cancel.
+function confirmDelete({title,detail,confirmLabel,onConfirm,onCancel}){
+  openModal(title,
+    `<p class="confirm-text">This action cannot be undone.</p><p class="confirm-detail">${detail}</p>`,
+    `<button type="button" class="ghost" data-close>Cancel</button><button type="button" class="danger-solid" id="confirmDelete">${confirmLabel}</button>`);
   const root=$('#modalRoot'),modal=root.querySelector('.modal'),backdrop=$('#backdrop');
   modal.classList.add('modal-confirm');modal.setAttribute('role','alertdialog');modal.setAttribute('aria-modal','true');
-  const head=modal.querySelector('.modal-head h2');head.id='confirmDeleteTitle';modal.setAttribute('aria-labelledby','confirmDeleteTitle');
+  modal.querySelector('.modal-head h2').id='confirmDeleteTitle';modal.setAttribute('aria-labelledby','confirmDeleteTitle');
   modal.querySelector('.modal-head [data-close]').setAttribute('aria-label','Cancel');
-  const done=()=>{document.removeEventListener('keydown',onKey)};
-  const cancel=()=>{root.innerHTML='';done();opener?.focus()};
-  const onKey=e=>{if(!modal.isConnected)return done();if(e.key==='Escape'){e.preventDefault();cancel()}};
+  let settled=false;
+  const finish=()=>{settled=true;document.removeEventListener('keydown',onKey)};
+  const onKey=e=>{if(!modal.isConnected)return finish();if(e.key==='Escape'){e.preventDefault();finish();root.innerHTML='';onCancel?.()}};
   document.addEventListener('keydown',onKey);
-  backdrop.addEventListener('click',e=>{if(e.target===backdrop||e.target.closest('[data-close]')){done();setTimeout(()=>opener?.focus(),0)}});
-  $('#confirmDeleteLesson').onclick=()=>{
-    done();
-    s.notes=s.notes.filter(x=>x.id!==n.id);
-    if(state.selectedNote===n.id)state.selectedNote=s.notes[0]?.id||null;
-    (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
-    save();root.innerHTML='';renderNotebook();toast('Lesson deleted');
-  };
+  // openModal already clears the dialog for Cancel, × and the backdrop; this adds the cancel callback.
+  backdrop.addEventListener('click',e=>{if(!settled&&(e.target===backdrop||e.target.closest('[data-close]'))){finish();setTimeout(()=>onCancel?.(),0)}});
+  $('#confirmDelete').onclick=()=>{finish();root.innerHTML='';onConfirm()};
   setTimeout(()=>modal.querySelector('.modal-foot [data-close]')?.focus(),0);
+}
+function confirmDeleteLesson(){
+  const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);if(!n)return;
+  const opener=$('[data-delete-lesson]');
+  confirmDelete({
+    title:'Delete this lesson?',detail:deleteDetail(n,'Untitled lesson'),confirmLabel:'Delete lesson',
+    onCancel:()=>opener?.focus(),
+    onConfirm:()=>{
+      s.notes=s.notes.filter(x=>x.id!==n.id);
+      if(state.selectedNote===n.id)state.selectedNote=s.notes[0]?.id||null;
+      (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
+      save();renderNotebook();toast('Lesson deleted');
+    }
+  });
 }
 function renderNotes(){
  const root=$('#view-notes');
@@ -479,8 +490,8 @@ function generalModal(n=null){
  if(isNew){state.notes.general??=[];n={id:uid('g'),title:'',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};state.notes.general.push(n);save()}
  currentGeneralNote=n;
  openModal(isNew?'New note':'Edit note',
-  `<div class="field"><input class="note-editor-title" id="gnTitle" value="${esc(n.title||'')}" placeholder="Note title"><div class="notebook-top" style="margin:6px 0 0;padding:0;border:0"><span style="color:var(--muted);font-size:11px">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="grow"></span><button type="button" class="pin-btn-lg ${n.pinned?'active':''}" id="gnPin" title="${n.pinned?'Unpin':'Pin note'}">${n.pinned?'★ Pinned':'☆ Pin'}</button></div>${editorToolbarHtml('gn')}<div class="note-editor" id="gnBody" contenteditable="true" data-placeholder="Write anything… reminders, checklists, ideas.">${n.body||''}</div>${attachmentsHtml(n,'gn')}</div>`,
-  `<button class="danger" id="deleteGeneral">Delete</button><span style="flex:1"></span><button class="ghost" data-close>Close</button><button class="primary save-note-btn" id="saveGeneral" title="Save (Ctrl+S)">Save</button>`
+  `<div class="field"><div class="lesson-head"><input class="note-editor-title" id="gnTitle" value="${esc(n.title||'')}" placeholder="Note title" aria-label="Note title"><div class="lesson-meta">${n.updated?'Last edited '+relTime(n.updated):''}</div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="gnPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin note':'Pin note'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" id="deleteGeneral" aria-label="Delete note" title="Delete note">${TRASH_ICON}</button></div></div>${editorToolbarHtml('gn')}<div class="note-editor" id="gnBody" contenteditable="true" data-placeholder="Write anything… reminders, checklists, ideas.">${n.body||''}</div>${attachmentsHtml(n,'gn')}</div>`,
+  `<button class="ghost" data-close>Close</button><button class="primary save-note-btn" id="saveGeneral" title="Save (Ctrl+S)">Save</button>`
  );
  $('#saveGeneral').onclick=async e=>{
   const btn=e.currentTarget,title=$('#gnTitle'),body=$('#gnBody');
@@ -494,16 +505,21 @@ function generalModal(n=null){
   if(empty)toast('Empty note discarded');else if(ok)toast('Note saved');
  };
  const pinBtn=$('#gnPin');
- pinBtn.onclick=()=>{n.pinned=!n.pinned;n.updated=Date.now();save();pinBtn.classList.toggle('active',n.pinned);pinBtn.title=n.pinned?'Unpin':'Pin note';pinBtn.textContent=n.pinned?'★ Pinned':'☆ Pin'};
- $('#deleteGeneral').onclick=()=>{
-  state.notes.general=(state.notes.general||[]).filter(x=>x.id!==n.id);
-  (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
-  save();
-  currentGeneralNote=null;
-  $('#modalRoot').innerHTML='';
-  render();
-  toast('Note deleted');
- };
+ pinBtn.onclick=()=>{n.pinned=!n.pinned;n.updated=Date.now();save();pinBtn.classList.toggle('active',n.pinned);pinBtn.title=n.pinned?'Unpin note':'Pin note';pinBtn.setAttribute('aria-pressed',String(n.pinned));pinBtn.innerHTML=pinLabelHtml(n.pinned)};
+ // The confirmation replaces this popup; Cancel reopens the note (it is autosaved, so nothing is lost).
+ $('#deleteGeneral').onclick=()=>confirmDelete({
+  title:'Delete this note?',detail:deleteDetail(n,'Untitled note'),confirmLabel:'Delete note',
+  onCancel:()=>{generalModal(n);setTimeout(()=>$('#deleteGeneral')?.focus(),0)},
+  onConfirm:()=>{
+   state.notes.general=(state.notes.general||[]).filter(x=>x.id!==n.id);
+   (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
+   save();
+   currentGeneralNote=null;
+   render();
+   toast('Note deleted');
+  }
+ });
+ $('#modalRoot .modal').classList.add('note-modal');
  $('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))finalizeGeneralNote()});
  setTimeout(()=>$('#gnTitle')?.focus(),0);
 }
