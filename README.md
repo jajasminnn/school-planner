@@ -13,6 +13,7 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 - **Saving notes:** lessons and notes autosave as you type. Each also has a **Save** button (or Ctrl/⌘ + S) that uploads right away and confirms with "✓ Saved", plus a **Close** button next to it at the bottom.
 - **Pin and Delete:** small Pin (☆/★) and trash buttons sit beside the lesson or note title. Deleting always asks "Delete this lesson?" / "Delete this note?" first, and only deletes after you confirm.
 - **Collapsible sidebar:** the sidebar folds into an icon-only rail with a toggle that stays visible in both states. Icons show their names on hover or keyboard focus, overdue tasks show as a dot on the Tasks icon, and the collapsed/expanded choice is remembered on each device.
+- **Clock time picker:** event Start/End times and task deadline times are picked on a round clock. Tap the hour, then the minutes (numbers are 5-minute steps; tap between them for an exact minute), switch AM/PM, and press **Done**. You can also use the − / + buttons, type the digits (e.g. `6` `2` `3` for 6:23), or use the arrow keys. **Cancel** leaves the time unchanged and **Clear time** removes it. Times are still stored as `"HH:MM"` (24-hour).
 - **Stay signed in:** you stay signed in on your browser for 30 days, so you don't have to sign in every time you open JASync (see [Sign-in flow](#sign-in-flow)).
 - **Search** across the planner (Ctrl K), light/dark/system theme, accent colour, backup and restore to a JSON file
 - Installable as an app (PWA) with offline caching
