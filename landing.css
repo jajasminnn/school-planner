@@ -117,7 +117,6 @@ body.dark .l-mock-hero{background:linear-gradient(135deg,#183236,#172023);border
 .l-footer-inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .l-footer .l-brand{font-size:16px}
 .l-footer .l-brand img{width:28px;height:28px;border-radius:7px}
-.l-footer p{margin:0;color:var(--muted);font-size:13px}
 .l-footer small{margin-left:auto;color:var(--muted);font-size:12px}
 
 /* Tablet */
