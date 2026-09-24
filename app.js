@@ -45,21 +45,29 @@ function resolveNote(prefix){if(prefix==='lesson'){const s=state.notes.subjects[
 let cloudUser=null;
 let cloudLoaded=false;
 let cloudSaveTimer=null;
+let authSeq=0;
 const firebaseServices=window.schoolPlannerFirebase||{};
 const auth=firebaseServices.auth||null;
 const db=firebaseServices.db||null;
+// Planner data created before per-account storage belongs to this account only.
+const LEGACY_OWNER_EMAIL='jsmntmsqt@gmail.com';
+const THEME_KEY='school-planner-theme';
+const GUEST_KEY=KEY+':guest';
+const isLegacyOwner=user=>(user?.email||'').toLowerCase()===LEGACY_OWNER_EMAIL;
+const localKey=()=>cloudUser?KEY+':'+cloudUser.uid:GUEST_KEY;
 const cloudRef=()=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc('main'):null;
-const plannerPayload=()=>({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+const plannerPayload=()=>({owner:cloudUser.uid,calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
 function setSaveStatus(text){const e=$('#saveIndicator');if(e)e.innerHTML=`<i></i><span>${esc(text)}</span>`}
+function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
+function writeLocal(){try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}catch{}}
 function save(){
-  const payload={calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings};
-  localStorage.setItem(KEY,JSON.stringify(payload));
+  writeLocal();
   setSaveStatus(cloudUser&&cloudLoaded?'Saving…':'Saved on this device');
   clearTimeout(save.t);
   save.t=setTimeout(()=>setSaveStatus(cloudUser&&cloudLoaded?'Saved to cloud':'Saved on this device'),900);
   if(cloudUser&&cloudLoaded&&db){
     clearTimeout(cloudSaveTimer);
-    cloudSaveTimer=setTimeout(()=>saveToCloud(),500);
+    cloudSaveTimer=setTimeout(()=>{cloudSaveTimer=null;saveToCloud()},500);
   }
 }
 async function saveToCloud(){
@@ -74,41 +82,88 @@ async function saveToCloud(){
     toast('Cloud save failed — your local copy is safe.');
   }
 }
-function loadLocal(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x){Object.assign(state,x);state.calendar??={events:[]};state.tasks??={tasks:[],meta:{}};state.notes??={notes:[],subjects:{}};state.settings??={}}else migrate()}catch{migrate()} if(!Array.isArray(state.settings.subjects))state.settings.subjects=[]; if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`})); if(!state.settings.accent)state.settings.accent='#367e83'; syncSubjects();}
+// Replace the whole planner with `data` (or a blank planner when data is empty).
+function applyData(data){
+  const theme=state.settings?.theme||readLocal(THEME_KEY)||'light';
+  state.calendar={events:[],showTasks:true};
+  state.tasks={tasks:[],meta:{subjects:[]}};
+  state.notes={notes:[],subjects:{}};
+  state.settings={theme,subjects:[],accent:'#367e83'};
+  state.selectedSubject=null;state.selectedNote=null;
+  if(data){
+    if(data.calendar)state.calendar=data.calendar;
+    if(data.tasks)state.tasks=data.tasks;
+    if(data.notes)state.notes=data.notes;
+    if(data.settings)state.settings=data.settings;
+  }
+  state.calendar.events??=[];state.tasks.tasks??=[];state.notes.subjects??={};
+  if(!Array.isArray(state.settings.subjects))state.settings.subjects=[];
+  if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}));
+  if(!state.settings.accent)state.settings.accent='#367e83';
+  syncSubjects();
+}
+function refreshUI(){
+  applyTheme(state.settings.theme||'light');
+  applyAccentColor(state.settings.accent);
+  render();
+}
+// Data saved on this device before accounts had separate storage (only ever offered to the legacy owner).
+function legacyLocalData(){
+  const x=readLocal(KEY);
+  if(x)return x;
+  applyData(null);migrate();
+  return {calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings};
+}
 async function loadCloudForUser(user){
+  const seq=++authSeq;
   cloudUser=user; cloudLoaded=false;
   updateAuthUI(user);
+  applyData(readLocal(localKey()));
+  refreshUI();
   setSaveStatus('Loading cloud data…');
   try{
     const snap=await cloudRef().get();
+    if(seq!==authSeq)return;
+    const owner=isLegacyOwner(user);
+    let needsWrite=false;
     if(snap.exists){
       const x=snap.data()||{};
-      if(x.calendar)state.calendar=x.calendar;
-      if(x.tasks)state.tasks=x.tasks;
-      if(x.notes)state.notes=x.notes;
-      if(x.settings)state.settings=x.settings;
-      if(!Array.isArray(state.settings.subjects))state.settings.subjects=[];
-      if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}));
-      if(!state.settings.accent)state.settings.accent='#367e83';
-      syncSubjects();
-      localStorage.setItem(KEY,JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}));
-      setSaveStatus('Synced from cloud');
+      if(x.owner===user.uid||(!x.owner&&owner)){
+        applyData(x);
+        needsWrite=!x.owner;
+      }else{
+        // Old bug copied another account's planner into this one. Start this account fresh.
+        applyData(null);
+        needsWrite=true;
+      }
     }else{
-      syncSubjects();
-      cloudLoaded=true;
-      await saveToCloud();
-      setSaveStatus('Saved to cloud');
+      if(owner)applyData(readLocal(localKey())||legacyLocalData());
+      needsWrite=true;
     }
     cloudLoaded=true;
-    applyAccentColor(state.settings.accent);
-    render();
+    writeLocal();
+    if(needsWrite)await saveToCloud();
+    if(seq!==authSeq)return;
+    if(owner)try{localStorage.removeItem(KEY)}catch{}
+    setSaveStatus(snap.exists?'Synced from cloud':'Saved to cloud');
+    refreshUI();
   }catch(err){
+    if(seq!==authSeq)return;
     console.error('Cloud load failed:',err);
     cloudLoaded=false;
     setSaveStatus('Saved on this device');
     toast('Firebase is connected, but Firestore access needs its security rules.');
-    render();
+    refreshUI();
   }
+}
+function showGuest(){
+  ++authSeq;
+  cloudUser=null;cloudLoaded=false;
+  clearTimeout(cloudSaveTimer);cloudSaveTimer=null;
+  updateAuthUI(null);
+  applyData(readLocal(GUEST_KEY));
+  refreshUI();
+  setSaveStatus('Saved on this device');
 }
 function updateAuthUI(user){
   const btn=$('#authButton'), name=$('#workspaceName'), email=$('#workspaceEmail'), avatar=$('#userAvatar');
@@ -134,10 +189,9 @@ async function handleAuthClick(){
   if(!auth){toast('Firebase could not be initialized.');return;}
   if(auth.currentUser){
     try{
+      if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;await saveToCloud();}
       await auth.signOut();
-      cloudUser=null;cloudLoaded=false;
-      setSaveStatus('Saved on this device');
-      updateAuthUI(null);
+      showGuest();
       toast('Signed out.');
     }catch(err){console.error(err);toast('Could not sign out.');}
     return;
@@ -147,14 +201,15 @@ async function handleAuthClick(){
 function setupFirebaseAuth(){
   updateAuthUI(auth?.currentUser||null);
   $('#authButton')?.addEventListener('click',handleAuthClick);
-  if(!auth){setSaveStatus('Firebase unavailable');return;}
+  if(!auth){showGuest();setSaveStatus('Firebase unavailable');return;}
+  setSaveStatus('Loading…');
   auth.onAuthStateChanged(user=>{
-    if(user)loadCloudForUser(user);
-    else{cloudUser=null;cloudLoaded=false;updateAuthUI(null);setSaveStatus('Saved on this device');}
+    if(user){if(user.uid!==cloudUser?.uid)loadCloudForUser(user);}
+    else showGuest();
   });
 }
 function migrate(){let old={}; try{for(const [k,v] of Object.entries(OLD)){const x=JSON.parse(localStorage.getItem(v)||'null'); if(x)old[k]=x}}catch{}; if(old.calendar)state.calendar=old.calendar; if(old.tasks){state.tasks=old.tasks;state.settings.subjects=(old.tasks.meta?.subjects||[]).map(x=>({id:x.id,name:x.name||''}))}; if(old.notes){state.notes={notes:old.notes.notes||[],subjects:{}}; (old.notes.folders||[]).forEach(f=>{state.notes.subjects[f.id]={id:f.id,name:f.name,body:''}})}; if(!state.settings.subjects?.length){state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}))}}
-// Firebase-aware startup uses loadLocal() first, then replaces it with the signed-in user's cloud copy when available.
+// Startup shows a blank planner, then loads the signed-in account's own data (or the guest planner when signed out).
 function syncSubjects(){state.tasks.meta=state.tasks.meta||{};state.tasks.meta.subjects=state.settings.subjects.map(s=>({id:s.id,name:s.name}));state.notes.subjects=state.notes.subjects||{};state.settings.subjects.forEach(s=>{if(!state.notes.subjects[s.id])state.notes.subjects[s.id]={id:s.id,name:s.name,body:'',notes:[]};state.notes.subjects[s.id].name=s.name});}
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function openModal(title,body,actions=''){const root=$('#modalRoot');root.innerHTML=`<div class="modal-backdrop" id="backdrop"><div class="modal"><div class="modal-head"><h2>${title}</h2><button class="icon-btn" data-close>×</button></div><div class="modal-body">${body}</div>${actions?`<div class="modal-foot">${actions}</div>`:''}</div></div>`;$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))root.innerHTML=''})}
@@ -455,5 +510,5 @@ if(attachInput){
  return;
 }
 if(e.target.id==='accentColor'){state.settings.accent=e.target.value;applyAccentColor(state.settings.accent);save();return}if(e.target.id==='notesSort'){$('#view-notes').dataset.sort=e.target.value;renderNotes();return}if(e.target.id==='lessonSort'){$('#view-subjects').dataset.lsort=e.target.value;renderNotebook();return}if(e.target.id==='calendarShowTasks'){state.calendar.showTasks=e.target.checked;save();renderCalendar();return}const fieldCell=e.target.closest('[data-field]');if(fieldCell&&(fieldCell.tagName==='SELECT'||fieldCell.type==='date')){const tr=fieldCell.closest('tr[data-task-id]');if(tr){const t=state.tasks.tasks.find(x=>x.id===tr.dataset.taskId);if(t){const f=fieldCell.dataset.field;if(f==='submission'){const val=fieldCell.value;if(val==='Other')t.submission=t.submission&&!SUBMISSION_TYPES.includes(t.submission)?t.submission:'';else t.submission=val;save();const cell=tr.querySelector('.submission-cell');if(cell){cell.outerHTML=submissionCellHtml(t,val==='Other');if(val==='Other'){const oi=tr.querySelector('[data-field="submissionOther"]');if(oi)oi.focus()}}return}t[f]=fieldCell.value;save();renderTasks()}}return}if(e.target.id==='taskStatus'){const r=$('#view-tasks');r.dataset.status=e.target.value;renderTasks()}if(e.target.id==='taskPriority'){const r=$('#view-tasks');r.dataset.pri=e.target.value;renderTasks()}if(e.target.id==='restoreFile'&&e.target.files[0]){const fr=new FileReader();fr.onload=()=>{try{const x=JSON.parse(fr.result);Object.assign(state,x);if(!state.settings.accent)state.settings.accent='#367e83';syncSubjects();applyAccentColor(state.settings.accent);save();render();toast('Backup restored')}catch{toast('That backup file is not valid.')}};fr.readAsText(e.target.files[0])}});
-loadLocal();wire();setupFirebaseAuth();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);applyAccentColor(state.settings.accent);setView('dashboard');
+applyData(null);wire();const theme=state.settings.theme==='dark'||(state.settings.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.body.classList.toggle('dark',theme);applyAccentColor(state.settings.accent);setView('dashboard');setupFirebaseAuth();
 })();

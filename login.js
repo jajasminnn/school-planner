@@ -2,8 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 try{
-  const saved=JSON.parse(localStorage.getItem('school-planner-v2')||'null');
-  const t=saved?.settings?.theme;
+  const t=localStorage.getItem('school-planner-theme')||JSON.parse(localStorage.getItem('school-planner-v2')||'null')?.settings?.theme;
   const dark=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);
   document.body.classList.toggle('dark',dark);
 }catch{}
