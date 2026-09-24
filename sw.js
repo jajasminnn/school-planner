@@ -1,5 +1,5 @@
-const CACHE='school-planner-v9-fresh-files';
-const ASSETS=['./','./index.html','./login.html','./styles.css','./app.js','./login.js','./firebase-config.js','./manifest.json','./icon.svg'];
+const CACHE='school-planner-v10-jasync-logo';
+const ASSETS=['./','./index.html','./login.html','./styles.css','./app.js','./login.js','./firebase-config.js','./manifest.json','./icon.svg','./logo.png'];
 const NETWORK_FIRST=['./index.html','./login.html','./firebase-config.js','./app.js','./login.js','./styles.css'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
