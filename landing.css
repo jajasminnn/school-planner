@@ -31,9 +31,7 @@ body.dark .l-nav{background:rgba(16,22,25,.85);border-bottom-color:var(--line)}
 .l-hero{position:relative;padding:72px 0 88px;background:radial-gradient(900px 480px at 85% 10%,rgba(102,174,177,.18),transparent 70%),linear-gradient(180deg,#eef6f6,var(--bg) 85%)}
 body.dark .l-hero{background:radial-gradient(900px 480px at 85% 10%,rgba(102,174,177,.12),transparent 70%),linear-gradient(180deg,#132226,var(--bg) 85%)}
 .l-hero-grid{display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
-.l-kicker{display:inline-flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 14px 7px 10px;font-size:13px;font-weight:650;color:var(--accent)}
-.l-kicker i{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
-.l-hero h1{font-size:clamp(40px,5.6vw,66px);line-height:1.02;letter-spacing:-.045em;margin:22px 0 18px;font-weight:800}
+.l-hero h1{font-size:clamp(40px,5.6vw,66px);line-height:1.02;letter-spacing:-.045em;margin:0 0 18px;font-weight:800}
 .l-hero h1 span{display:block;padding-bottom:.1em;margin-bottom:-.1em;background:linear-gradient(120deg,var(--accent),var(--l-bright));-webkit-background-clip:text;background-clip:text;color:transparent}
 .l-lead{font-size:18px;line-height:1.6;color:var(--muted);margin:0;max-width:520px}
 .l-cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
