@@ -10,11 +10,16 @@
 <body>
 <script>
 /* Runs before first paint: apply the saved theme, and if this browser was signed in last time,
-   show the splash instead of flashing the landing page while Firebase confirms the session. */
+   go straight to the planner. app.html confirms the session itself and sends signed-out visitors
+   back here, so returning users see one short splash instead of two back to back. */
 try{
   var t=localStorage.getItem('school-planner-theme');
   if(t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches))document.body.classList.add('dark');
-  if(localStorage.getItem('jasync-session')==='1')document.body.classList.add('auth-pending');
+  if(localStorage.getItem('jasync-session')==='1'){
+    document.body.classList.add('auth-pending');
+    var n=new URLSearchParams(location.search).get('next')||'';
+    location.replace(/^app\.html(#[a-z]+)?$/.test(n)?n:'app.html');
+  }
 }catch(e){}
 </script>
 <div class="auth-splash" role="status"><img src="logo.png" alt=""><span>Opening your planner…</span></div>
@@ -70,20 +75,20 @@ try{
               <div class="l-mock-cards">
                 <div class="l-mock-card">
                   <h4>Upcoming deadlines</h4>
-                  <div class="l-row"><i style="--c:#367e83"></i><p>Assignment 1<small>Chemistry</small></p><span class="pill warn">Today</span></div>
-                  <div class="l-row"><i style="--c:#5d7cc5"></i><p>Lab Activity 2<small>Calculus</small></p><span class="pill">2 days</span></div>
-                  <div class="l-row"><i style="--c:#c77b30"></i><p>Activity 3<small>Literature</small></p><span class="pill success">Done</span></div>
+                  <div class="l-row"><i style="--c:#367e83"></i><p>Assignment 1<small>Programming 2</small></p><span class="pill warn">Today</span></div>
+                  <div class="l-row"><i style="--c:#5d7cc5"></i><p>Lab Activity 2<small>Web Development</small></p><span class="pill">2 days</span></div>
+                  <div class="l-row"><i style="--c:#c77b30"></i><p>Activity 3<small>Fundamentals of Research</small></p><span class="pill success">Done</span></div>
                 </div>
                 <div class="l-mock-card">
                   <h4>This week</h4>
                   <div class="l-week">
                     <span>M</span><span>T</span><span>W</span><span class="today">T</span><span>F</span>
-                    <em style="--c:#367e83;grid-column:1;grid-row:2">Chem</em>
-                    <em style="--c:#5d7cc5;grid-column:2;grid-row:2">Calc</em>
-                    <em style="--c:#3b9270;grid-column:3;grid-row:3">Study</em>
+                    <em style="--c:#367e83;grid-column:1;grid-row:2">SIA</em>
+                    <em style="--c:#5d7cc5;grid-column:2;grid-row:2">Web Dev</em>
+                    <em style="--c:#3b9270;grid-column:3;grid-row:3">Multimedia</em>
                     <em style="--c:#367e83;grid-column:4;grid-row:2">Lab</em>
                     <em style="--c:#c45b64;grid-column:5;grid-row:3">Quiz</em>
-                    <em style="--c:#c77b30;grid-column:2;grid-row:3">Lit</em>
+                    <em style="--c:#c77b30;grid-column:2;grid-row:3">Database Ad</em>
                   </div>
                 </div>
               </div>

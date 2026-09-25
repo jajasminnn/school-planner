@@ -86,7 +86,7 @@ body.dark .attach-remove:hover{background:#3a2020}
 @media(max-width:760px){.editor-toolbar button{width:27px;height:27px}.note-grid{grid-template-columns:1fr}}
 @media(max-width:480px){.attach-chip{flex-wrap:wrap}}
 /* Auth gate: the app stays hidden until Firebase confirms a signed-in user */
-.auth-splash{display:none}body.auth-pending .app-shell,body.auth-pending #modalRoot{display:none}body.auth-pending .auth-splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--muted);font-size:13px}.auth-splash img{width:56px;height:56px;border-radius:13px;box-shadow:0 10px 26px rgba(54,126,131,.25);animation:splashPulse 1.4s ease-in-out infinite}@keyframes splashPulse{50%{opacity:.65;transform:scale(.95)}}@media(prefers-reduced-motion:reduce){.auth-splash img{animation:none}}
+.auth-splash{display:none}body.auth-pending .app-shell,body.auth-pending #modalRoot{display:none}body.auth-pending .auth-splash{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--muted);font-size:13px;animation:splashIn .25s ease .3s both}@keyframes splashIn{from{opacity:0}}.auth-splash img{width:56px;height:56px;border-radius:13px;box-shadow:0 10px 26px rgba(54,126,131,.25);animation:splashPulse 1.4s ease-in-out infinite}@keyframes splashPulse{50%{opacity:.65;transform:scale(.95)}}@media(prefers-reduced-motion:reduce){.auth-splash img{animation:none}}
 /* Sidebar collapse (desktop): icon-only rail with a toggle that stays visible in both states.
    --sidebar-collapsed is 74px so the logo, avatar and nav icons sit exactly centred (x = 37px)
    and do not move sideways while the sidebar animates. */
