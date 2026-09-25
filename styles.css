@@ -285,3 +285,18 @@ body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel)
   .subjects-controls .input{flex:1 1 100%;min-width:0}
   .subject-row .pill{display:none}
 }
+/* Export to device calendar */
+.export-lead{margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.55}
+.export-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.export-summary div{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.export-summary b{display:block;font-size:22px;color:var(--ink)}
+.export-summary span{font-size:12px;color:var(--muted)}
+.export-check{font-size:13px;margin-bottom:12px}
+.export-help{border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--muted);line-height:1.55}
+.export-help summary{cursor:pointer;font-weight:650;color:var(--accent)}
+.export-help ul{margin:8px 0;padding-left:18px}
+.export-help p{margin:0}
+@media(max-width:520px){
+  .modal-foot{flex-wrap:wrap}
+  .modal-foot #icsEvent{order:-1;flex:1 1 100%}
+}
