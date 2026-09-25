@@ -72,7 +72,7 @@ body.dark .l-mock-hero{background:linear-gradient(135deg,#183236,#172023);border
 .l-week{display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:auto auto auto;gap:5px}
 .l-week span{text-align:center;font-size:9px;font-weight:750;color:var(--muted);padding:3px 0;border-radius:6px}
 .l-week span.today{background:var(--accent);color:#fff}
-.l-week em{font-style:normal;font-size:8px;font-weight:700;padding:5px 3px;border-radius:6px;text-align:center;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);border-left:2px solid var(--c);overflow:hidden;line-height:1.2;overflow-wrap:anywhere}
+.l-week em{font-style:normal;font-size:8px;font-weight:700;padding:5px 3px;border-radius:6px;text-align:center;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);border-left:2px solid var(--c);overflow:hidden;line-height:1.2}
 .l-float{position:absolute;left:-26px;bottom:-22px;display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:11px 16px 11px 11px;box-shadow:0 16px 40px rgba(25,55,60,.14)}
 .l-float span{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#e6f4ec;color:var(--success);font-weight:800}
 .l-float p{margin:0;font-size:12px}
