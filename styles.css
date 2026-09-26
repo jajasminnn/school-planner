@@ -339,3 +339,10 @@ body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel)
   .modal-foot{flex-wrap:wrap}
   .modal-foot #icsEvent{order:-1;flex:1 1 100%}
 }
+/* Formatting toolbar stays in view while scrolling a long lesson or note: under the sticky top bar on the
+   page, at the top of the popup for general notes. The notebook clips instead of hiding overflow, since
+   overflow:hidden would stop sticky from working. */
+.notebook{overflow:hidden;overflow:clip}
+.editor-toolbar{position:sticky;top:90px;z-index:15;box-shadow:0 4px 14px rgba(25,45,55,.06)}
+.modal .editor-toolbar{top:0}
+@media(max-width:760px){.editor-toolbar{top:80px}}
