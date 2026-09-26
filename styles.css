@@ -63,6 +63,14 @@ body.auth-open{overflow:hidden}
 .note-editor ul,.note-editor ol{margin:0 0 10px;padding-left:22px}
 .note-editor blockquote{margin:10px 0;padding:9px 14px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 10px 10px 0;color:var(--muted)}
 .note-editor a{color:var(--accent)}
+/* Pasted/dropped images: a small thumbnail in the text (overrides any size the paste carried); click to view full size */
+.note-editor img{width:auto!important;height:auto!important;max-width:min(220px,100%);max-height:160px;margin:4px 6px 4px 0;vertical-align:top;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:zoom-in;transition:box-shadow .15s ease}
+.note-editor img:hover{box-shadow:0 0 0 3px var(--accent-soft)}
+.image-viewer{position:fixed;inset:0;z-index:210;display:grid;place-items:center;padding:56px 16px 24px;background:rgba(10,16,20,.86);backdrop-filter:blur(4px);cursor:zoom-out}
+.image-viewer img{max-width:calc(100vw - 32px);max-height:calc(100vh - 80px);max-height:calc(100dvh - 80px);border-radius:10px;box-shadow:0 25px 70px rgba(0,0,0,.45);background:#fff;cursor:default}
+.image-viewer-close{position:absolute;top:12px;right:12px;width:40px;height:40px;border:0;border-radius:12px;background:rgba(255,255,255,.14);color:#fff;font-size:24px;line-height:1}
+.image-viewer-close:hover{background:rgba(255,255,255,.26)}
+.image-viewer-close:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .attach-panel{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .attach-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:750;color:var(--muted)}
 .attach-add{font-size:11px;padding:7px 11px;cursor:pointer}

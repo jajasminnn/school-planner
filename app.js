@@ -813,6 +813,70 @@ function quickAdd(){openModal('What do you want to add?','<div class="grid" styl
 function quickSearch(){openModal('Search your planner','<input class="input" id="globalQ" style="width:100%" placeholder="Search tasks, events and notes…"><div id="globalResults" style="margin-top:12px"></div>');const q=$('#globalQ');q.focus();q.oninput=()=>{const x=q.value.toLowerCase().trim();const r=[];state.tasks.tasks.forEach(t=>{if((t.task+' '+taskSubject(t.subject)+' '+(t.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(t.task)}</b><span>Task · ${esc(taskSubject(t.subject))}</span></div></div>`)});state.calendar.events.forEach(e=>{if((e.title+' '+(e.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(e.title)}</b><span>Event · ${fmtDate(e.date)}</span></div></div>`)});$('#globalResults').innerHTML=r.slice(0,12).join('')||'<div class="empty">No matches.</div>'}}
 
 document.addEventListener('mousedown',e=>{if(e.target.closest('.editor-toolbar button[data-cmd]'))e.preventDefault()});
+// Images pasted or dropped into a lesson or note show as small thumbnails; clicking one opens it full size
+// on top of everything (including the note popup). Escape, × or a click outside the image closes it.
+function openImageViewer(src,alt,returnFocus){
+ const v=document.createElement('div');v.className='image-viewer';
+ v.setAttribute('role','dialog');v.setAttribute('aria-modal','true');v.setAttribute('aria-label','Image preview');
+ v.innerHTML='<button type="button" class="image-viewer-close" aria-label="Close image">×</button><img alt="">';
+ const img=v.querySelector('img');img.src=src;img.alt=alt||'';
+ const close=()=>{document.removeEventListener('keydown',onKey,true);v.remove();returnFocus?.focus({preventScroll:true})};
+ // Capture Escape first so it closes only the preview, not the note underneath.
+ const onKey=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close()}};
+ document.addEventListener('keydown',onKey,true);
+ v.addEventListener('click',e=>{if(e.target!==img)close()});
+ document.body.appendChild(v);v.querySelector('.image-viewer-close').focus();
+}
+document.addEventListener('click',e=>{const img=e.target.closest('.note-editor img');if(img&&img.src)openImageViewer(img.src,img.alt,img.closest('.note-editor'))});
+// Pictures are stored inside the note's text, and the whole planner syncs to the cloud as one record with a
+// 1 MB limit, so pasted and dropped pictures are shrunk first: at most 1200px on the longest side, as JPEG.
+const IMG_MAX_SIDE=1200,IMG_QUALITY=.82;
+const readDataUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(f)});
+async function shrinkImage(file){
+ const original=await readDataUrl(file);
+ // Small GIFs and SVGs stay as they are so animations and sharp vector lines survive.
+ if((file.type==='image/gif'||file.type==='image/svg+xml')&&file.size<300*1024)return original;
+ const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('unreadable image'));i.src=original});
+ const scale=Math.min(1,IMG_MAX_SIDE/Math.max(img.naturalWidth,img.naturalHeight));
+ const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+ const c=document.createElement('canvas');c.width=w;c.height=h;
+ const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);// JPEG has no transparency
+ ctx.drawImage(img,0,0,w,h);
+ const small=c.toDataURL('image/jpeg',IMG_QUALITY);
+ // A picture that was already small can come out bigger as JPEG; keep the original then.
+ return scale===1&&original.length<=small.length?original:small;
+}
+async function insertImages(editor,files){
+ for(const f of files){
+  try{const src=await shrinkImage(f);editor.focus();document.execCommand('insertImage',false,src)}
+  catch{toast(`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
+ }
+ editor.dispatchEvent(new Event('input',{bubbles:true}));
+}
+const editorOf=e=>(e.target.nodeType===1?e.target:e.target.parentElement)?.closest('.note-editor');
+const imageFiles=list=>[...(list||[])].filter(f=>f.type.startsWith('image/'));
+// Pasting a picture on its own (a screenshot, "Copy image"). Pastes that also carry text, like a block
+// copied from Word, keep the browser's normal behaviour.
+document.addEventListener('paste',e=>{
+ const editor=editorOf(e);if(!editor)return;
+ const files=imageFiles(e.clipboardData?.files);
+ if(!files.length||e.clipboardData.getData('text/plain').trim())return;
+ e.preventDefault();insertImages(editor,files);
+});
+// Dropping files: pictures go in where they were dropped. Other files would make the browser leave the
+// planner to open them, so point to the attachments instead.
+document.addEventListener('dragover',e=>{if(editorOf(e)&&e.dataTransfer?.types.includes('Files'))e.preventDefault()});
+document.addEventListener('drop',e=>{
+ const editor=editorOf(e);if(!editor||!e.dataTransfer?.files.length)return;
+ e.preventDefault();
+ const files=imageFiles(e.dataTransfer.files);
+ if(!files.length)return toast('Only pictures can go in the text — use “+ Add file” below for other files.');
+ let r=document.caretRangeFromPoint?.(e.clientX,e.clientY);
+ if(!r&&document.caretPositionFromPoint){const p=document.caretPositionFromPoint(e.clientX,e.clientY);if(p){r=document.createRange();r.setStart(p.offsetNode,p.offset)}}
+ editor.focus();
+ if(r&&editor.contains(r.startContainer)){const s=getSelection();s.removeAllRanges();s.addRange(r)}
+ insertImages(editor,files);
+});
 document.addEventListener('click',e=>{
 const pinLesson=e.target.closest('[data-pin-lesson]');
 if(pinLesson){const s=state.notes.subjects[state.selectedSubject];const n=s&&s.notes&&s.notes.find(x=>x.id===pinLesson.dataset.pinLesson);if(n){n.pinned=!n.pinned;save();renderNotebook()}return}
