@@ -245,6 +245,90 @@ async function saveNow(){
 function flushCloudSave(){if(cloudSaveTimer){clearTimeout(cloudSaveTimer);cloudSaveTimer=null;saveToCloud()}}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flushCloudSave()});
 addEventListener('pagehide',flushCloudSave);
+/* ---- Pictures in notes ----
+ The planner syncs to the cloud as one record capped at 1 MB, which a few pictures fill. So each picture gets
+ its own record (users/{uid}/planner/img-<id>, which the existing Firestore rules already allow) and a copy
+ in this browser's IndexedDB. A note's stored text keeps only <img data-img="<id>">; the picture is filled
+ in when the note is shown (hydrateImages). */
+const IMG_MAX_SIDE=1200,IMG_QUALITY=.82,IMG_TARGET=700*1024,IMG_CLOUD_MAX=1000*1000,IMG_PREFIX='img-';
+const imgCache=new Map();// id -> data URL, for this page
+const imgRef=id=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc(IMG_PREFIX+id):null;
+const readDataUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(f)});
+// At most 1200px on the longest side, as JPEG, stepping down until it is comfortably under the cloud limit.
+async function shrinkDataUrl(src){
+ const type=src.slice(5,src.indexOf(';'));
+ // Small GIFs and SVGs stay as they are so animations and sharp vector lines survive.
+ if((type==='image/gif'||type==='image/svg+xml')&&src.length<400*1024)return src;
+ const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('unreadable image'));i.src=src});
+ let small='';
+ for(const [side,q] of [[IMG_MAX_SIDE,IMG_QUALITY],[1000,.7],[800,.6]]){
+  const scale=Math.min(1,side/Math.max(img.naturalWidth,img.naturalHeight));
+  const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);// JPEG has no transparency
+  ctx.drawImage(img,0,0,w,h);
+  small=c.toDataURL('image/jpeg',q);
+  // A picture that was already small can come out bigger as JPEG; keep the original then.
+  if(scale===1&&src.length<=small.length&&src.length<=IMG_TARGET)return src;
+  if(small.length<=IMG_TARGET)break;
+ }
+ return small;
+}
+const pendingKey=()=>localKey()+':pending-images';
+function pendingImages(){try{return JSON.parse(localStorage.getItem(pendingKey())||'[]')}catch{return[]}}
+function setPending(id,on){const ids=new Set(pendingImages());on?ids.add(id):ids.delete(id);try{ids.size?localStorage.setItem(pendingKey(),JSON.stringify([...ids])):localStorage.removeItem(pendingKey())}catch{}}
+async function uploadImage(id,src){
+ if(!cloudUser)return;
+ if(src.length>IMG_CLOUD_MAX){setPending(id,false);return toast('One picture is too big to sync, so it stays on this device only.')}
+ const ref=imgRef(id);
+ if(!ref||!cloudLoaded)return setPending(id,true);// uploaded once the cloud is ready (flushPendingImages)
+ setPending(id,true);
+ try{await ref.set({owner:cloudUser.uid,kind:'image',data:src,createdAt:firebase.firestore.FieldValue.serverTimestamp()});setPending(id,false)}
+ catch(err){console.error('Picture upload failed:',err)}
+}
+async function flushPendingImages(){for(const id of pendingImages()){const src=await loadImageSrc(id,false);if(src)await uploadImage(id,src);else setPending(id,false)}}
+addEventListener('online',()=>{if(cloudLoaded)flushPendingImages()});
+// Gives a picture its id right away (so the note's text never has to hold it) and saves it in the background:
+// on this device first, then shrunk if it wasn't already, then to the cloud. onSmall gets the shrunk version.
+function adoptImage(src,alreadyShrunk=false,onSmall){
+ const id=uid('');imgCache.set(id,src);
+ putFileBlob(IMG_PREFIX+id,src,'','image').catch(()=>{});
+ (alreadyShrunk?Promise.resolve(src):shrinkDataUrl(src)).then(small=>{
+  if(small!==src){imgCache.set(id,small);putFileBlob(IMG_PREFIX+id,small,'','image').catch(()=>{});onSmall?.(small)}
+  uploadImage(id,small);
+ }).catch(()=>uploadImage(id,src));
+ return id;
+}
+async function loadImageSrc(id,fromCloud=true){
+ if(imgCache.has(id))return imgCache.get(id);
+ try{const rec=await getFileBlob(IMG_PREFIX+id);if(rec?.blob){imgCache.set(id,rec.blob);return rec.blob}}catch{}
+ const ref=fromCloud&&imgRef(id);if(!ref)return null;
+ try{
+  const snap=await ref.get(),src=snap.exists?snap.data().data:null;
+  if(src){imgCache.set(id,src);putFileBlob(IMG_PREFIX+id,src,'','image').catch(()=>{})}
+  return src;
+ }catch{return null}
+}
+function hydrateImages(root){
+ root?.querySelectorAll('img[data-img]:not([src])').forEach(async img=>{
+  const src=await loadImageSrc(img.dataset.img);
+  if(src)img.src=src;else{img.alt='Picture not available on this device yet';img.classList.add('img-missing')}
+ });
+}
+// A note's text as stored: pictures keep only their id. A picture still held in the text itself (pasted as
+// part of a larger block, or added before pictures had their own records) is given one here.
+function editorBodyHtml(editor){
+ editor.querySelectorAll('img[src^="data:"]:not([data-img])').forEach(img=>{img.dataset.img=adoptImage(img.src,false,small=>{if(img.isConnected)img.src=small})});
+ const c=editor.cloneNode(true);c.querySelectorAll('img[data-img]').forEach(i=>i.removeAttribute('src'));return c.innerHTML;
+}
+// Moves pictures out of every saved note's text. Returns true if any note changed.
+function moveInlineImages(){
+ let changed=false;
+ const fix=n=>{if(!n?.body?.includes('src="data:'))return;const d=document.createElement('div');d.innerHTML=n.body;n.body=editorBodyHtml(d);changed=true};
+ Object.values(state.notes.subjects||{}).forEach(s=>(s.notes||[]).forEach(fix));
+ (state.notes.general||[]).forEach(fix);
+ return changed;
+}
 // Replace the whole planner with `data` (or a blank planner when data is empty).
 function applyData(data){
   const theme=state.settings?.theme||readLocal(THEME_KEY)||'light';
@@ -310,8 +394,11 @@ async function loadCloudForUser(user){
       needsWrite=true;
     }
     cloudLoaded=true;
+    // Pictures still inside notes' text are what pushes the planner over the cloud limit: move them out.
+    if(moveInlineImages()){state.savedAt=Date.now();markUnsynced(true);needsWrite=true}
     writeLocal();
     const uploaded=needsWrite?await saveToCloud():true;
+    flushPendingImages();
     if(seq!==authSeq)return;
     if(owner)try{localStorage.removeItem(KEY)}catch{}
     setSaveStatus(!uploaded?'Saved on this device':snap.exists&&!keptLocal?'Synced from cloud':'Saved to cloud');
@@ -684,6 +771,7 @@ function renderNotebook(){
  const pinnedCount=sorted.filter(x=>x.pinned).length;
  const listHtml=sorted.length?sorted.map((x,i)=>`${i===0&&x.pinned?'<div class="list-divider">Pinned</div>':''}${pinnedCount>0&&i===pinnedCount&&!x.pinned?'<div class="list-divider">Other lessons</div>':''}<div class="note-item ${x.id===state.selectedNote?'active':''}" data-lesson="${x.id}" tabindex="0" role="button"><div class="note-item-row"><b>${esc(x.title||'Untitled lesson')}</b><button type="button" class="pin-btn ${x.pinned?'active':''}" data-pin-lesson="${x.id}" title="${x.pinned?'Unpin':'Pin note'}">${x.pinned?'★':'☆'}</button></div><small>${relTime(x.updated)}${(x.attachments||[]).length?' · 📎 '+x.attachments.length:''}</small></div>`).join(''):`<div class="empty">${q?'No lessons match your search.':'No lessons yet.'}</div>`;
  root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 12px;font-size:18px">${esc(s.name)}</h2><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span></div><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}<div class="lesson-foot"><button type="button" class="ghost" data-close-lesson>Close</button><button type="button" class="primary save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div>`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
+ hydrateImages($('#lessonBody'));
 }
 function newLesson(){const s=state.settings.subjects.find(x=>x.id===state.selectedSubject);const nb=state.notes.subjects[s.id]||{id:s.id,name:s.name,notes:[]};nb.notes??=[];const n={id:uid('n'),title:'New lesson',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};nb.notes.unshift(n);state.notes.subjects[s.id]=nb;state.selectedNote=n.id;const root=$('#view-subjects');if(root)root.dataset.lquery='';save();renderNotebook();setTimeout(()=>$('#lessonTitle')?.focus(),0)}
 function markEditedNow(){document.querySelectorAll('.note-edited').forEach(x=>x.textContent='Last edited just now')}
@@ -691,7 +779,7 @@ async function saveLesson(){
   const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);
   const btn=$('[data-save-lesson]');if(!n||!btn||btn.disabled)return;
   // Take the editor's current contents in case the last keystroke has not fired an input event yet.
-  const title=$('#lessonTitle'),body=$('#lessonBody');if(title)n.title=title.value;if(body)n.body=body.innerHTML;
+  const title=$('#lessonTitle'),body=$('#lessonBody');if(title)n.title=title.value;if(body)n.body=editorBodyHtml(body);
   n.updated=Date.now();
   btn.disabled=true;btn.textContent='Saving…';
   const ok=await saveNow();
@@ -764,7 +852,7 @@ function renderNotes(){
 }
 function finalizeGeneralNote(){
  const n=currentGeneralNote; if(!n)return;
- const empty=!(n.title||'').trim()&&!stripHtml(n.body||'').trim()&&!(n.attachments||[]).length;
+ const empty=!(n.title||'').trim()&&!stripHtml(n.body||'').trim()&&!/<img/i.test(n.body||'')&&!(n.attachments||[]).length;
  if(empty){state.notes.general=(state.notes.general||[]).filter(x=>x.id!==n.id);save()}
  currentGeneralNote=null;
  render();
@@ -779,8 +867,8 @@ function generalModal(n=null){
  );
  $('#saveGeneral').onclick=async e=>{
   const btn=e.currentTarget,title=$('#gnTitle'),body=$('#gnBody');
-  if(title)n.title=title.value;if(body)n.body=body.innerHTML;
-  const empty=!(n.title||'').trim()&&!stripHtml(n.body||'').trim()&&!(n.attachments||[]).length;
+  if(title)n.title=title.value;if(body)n.body=editorBodyHtml(body);
+  const empty=!(n.title||'').trim()&&!stripHtml(n.body||'').trim()&&!/<img/i.test(n.body||'')&&!(n.attachments||[]).length;
   btn.disabled=true;btn.textContent='Saving…';
   n.updated=Date.now();
   finalizeGeneralNote();
@@ -804,6 +892,7 @@ function generalModal(n=null){
   }
  });
  $('#modalRoot .modal').classList.add('note-modal');
+ hydrateImages($('#gnBody'));
  $('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))finalizeGeneralNote()});
  setTimeout(()=>$('#gnTitle')?.focus(),0);
 }
@@ -848,28 +937,15 @@ function openImageViewer(src,alt,returnFocus){
  document.body.appendChild(v);v.querySelector('.image-viewer-close').focus();
 }
 document.addEventListener('click',e=>{const img=e.target.closest('.note-editor img');if(img&&img.src)openImageViewer(img.src,img.alt,img.closest('.note-editor'))});
-// Pictures are stored inside the note's text, and the whole planner syncs to the cloud as one record with a
-// 1 MB limit, so pasted and dropped pictures are shrunk first: at most 1200px on the longest side, as JPEG.
-const IMG_MAX_SIDE=1200,IMG_QUALITY=.82;
-const readDataUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(f)});
-async function shrinkImage(file){
- const original=await readDataUrl(file);
- // Small GIFs and SVGs stay as they are so animations and sharp vector lines survive.
- if((file.type==='image/gif'||file.type==='image/svg+xml')&&file.size<300*1024)return original;
- const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('unreadable image'));i.src=original});
- const scale=Math.min(1,IMG_MAX_SIDE/Math.max(img.naturalWidth,img.naturalHeight));
- const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
- const c=document.createElement('canvas');c.width=w;c.height=h;
- const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);// JPEG has no transparency
- ctx.drawImage(img,0,0,w,h);
- const small=c.toDataURL('image/jpeg',IMG_QUALITY);
- // A picture that was already small can come out bigger as JPEG; keep the original then.
- return scale===1&&original.length<=small.length?original:small;
-}
+// Pasted and dropped pictures are shrunk, given their own record (see adoptImage) and put in at the caret.
 async function insertImages(editor,files){
  for(const f of files){
-  try{const src=await shrinkImage(f);editor.focus();document.execCommand('insertImage',false,src)}
-  catch{toast(`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
+  try{
+   const src=await shrinkDataUrl(await readDataUrl(f));
+   const id=adoptImage(src,true);
+   editor.focus();
+   document.execCommand('insertHTML',false,`<img data-img="${id}" src="${src}" alt="${esc(f.name||'')}">`);
+  }catch{toast(`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
  }
  editor.dispatchEvent(new Event('input',{bubbles:true}));
 }
@@ -949,7 +1025,7 @@ if(taskTime){openTimePicker(taskTime,{suggest:()=>'23:59'});return}
 const accSwatch=e.target.closest('[data-accent-swatch]');
 if(accSwatch){state.settings.accent=accSwatch.dataset.accentSwatch;applyAccentColor(state.settings.accent);save();renderSettings();return}
 const sheet=e.target.closest('[data-task-sheet]');if(sheet){$('#view-tasks').dataset.sheet=sheet.dataset.taskSheet;renderTasks();return}const detail=e.target.closest('[data-row-details]');if(detail){const d=$('#details-'+detail.dataset.rowDetails);if(d)d.classList.toggle('show');return}const go=e.target.closest('[data-go]');if(go)return setView(go.dataset.go);const sub=e.target.closest('[data-subject]');if(sub){state.selectedSubject=sub.dataset.subject;state.selectedNote=null;setView('subjects');renderNotebook();return}if(e.target.closest('[data-calendar-task]')){setView('tasks');return}if(e.target.closest('[data-add-event]'))return eventModal();if(e.target.closest('[data-export-cal]'))return exportCalendarModal();const day=e.target.closest('[data-day]');if(day&&!e.target.closest('[data-event]'))return eventModal(null,day.dataset.day);const ev=e.target.closest('[data-event]');if(ev){const x=state.calendar.events.find(a=>a.id===ev.dataset.event);if(x)eventModal(x);return}const cs=e.target.closest('[data-cal]');if(cs){state.calMode=cs.dataset.cal;renderCalendar();return}if(e.target.closest('[data-calstep]')){const n=+e.target.closest('[data-calstep]').dataset.calstep;if(state.calMode==='week')state.calCursor.setDate(state.calCursor.getDate()+n*7);else if(state.calMode==='agenda')state.calCursor.setDate(state.calCursor.getDate()+n*30);else state.calCursor=new Date(state.calCursor.getFullYear(),state.calCursor.getMonth()+n,1);renderCalendar();return}if(e.target.closest('[data-caltoday]')){state.calCursor=new Date();renderCalendar();return}if(e.target.closest('[data-add-task]'))return addTaskRow();const delTask=e.target.closest('[data-del-task]');if(delTask){const id=delTask.dataset.delTask,t=state.tasks.tasks.find(x=>x.id===id);if(!t)return;confirmDelete({title:'Delete this task?',detail:`“${esc(t.task||'Untitled task')}” will be permanently removed.`,confirmLabel:'Delete task',onCancel:()=>$(`[data-del-task="${id}"]`)?.focus(),onConfirm:()=>{state.tasks.tasks=state.tasks.tasks.filter(x=>x.id!==id);save();renderTasks();toast((t.task?`"${t.task}"`:'Task')+' deleted')}});return}const done=e.target.closest('[data-taskdone]');if(done){const t=state.tasks.tasks.find(x=>x.id===done.dataset.taskdone);if(t){t.status=done.checked?'Done':'Not Started';save();render()};return}if(e.target.closest('[data-clear-done]')){state.tasks.tasks=state.tasks.tasks.filter(t=>t.status!=='Done');save();render();toast('Completed tasks cleared');return}if(e.target.closest('[data-manage-subjects]'))return setView('settings');if(e.target.closest('[data-back-subjects]')){state.selectedSubject=null;setView('subjects');return}if(e.target.closest('[data-new-lesson]'))return newLesson();const lesson=e.target.closest('[data-lesson]');if(lesson){state.selectedNote=lesson.dataset.lesson;renderNotebook();return}if(e.target.closest('[data-save-lesson]'))return saveLesson();if(e.target.closest('[data-close-lesson]')){state.selectedNote='';renderNotebook();return}if(e.target.closest('[data-delete-lesson]'))return confirmDeleteLesson();const subjectsViewBtn=e.target.closest('[data-subjects-view]');if(subjectsViewBtn){try{sessionStorage.setItem(SUBJECTS_VIEW_KEY,subjectsViewBtn.dataset.subjectsView)}catch{}renderSubjects();$(`[data-subjects-view="${subjectsViewBtn.dataset.subjectsView}"]`)?.focus();return}const notesViewBtn=e.target.closest('[data-notes-view]');if(notesViewBtn){try{sessionStorage.setItem(NOTES_VIEW_KEY,notesViewBtn.dataset.notesView)}catch{}renderNotes();$(`[data-notes-view="${notesViewBtn.dataset.notesView}"]`)?.focus();return}if(e.target.closest('[data-new-general]'))return generalModal();const gen=e.target.closest('[data-general]');if(gen){const n=(state.notes.general||[]).find(x=>x.id===gen.dataset.general);if(n)generalModal(n);return}if(e.target.closest('[data-save-subjects]')){ $$('[data-subedit]').forEach(i=>{const s=state.settings.subjects.find(x=>x.id===i.dataset.subedit);if(s)s.name=i.value.trim()||s.name});syncSubjects();save();render();toast('Subjects updated');return}const th=e.target.closest('[data-theme]');if(th){state.settings.theme=th.dataset.theme;document.body.classList.toggle('dark',th.dataset.theme==='dark'||(th.dataset.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches));save();return}if(e.target.closest('[data-backup]'))return downloadBackup()});
-document.addEventListener('input',e=>{if((e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')&&e.target.dataset.field){const tr=e.target.closest('tr[data-task-id]');if(tr){const t=state.tasks.tasks.find(x=>x.id===tr.dataset.taskId);if(t){const f=e.target.dataset.field;if(f==='submissionOther')t.submission=e.target.value;else t[f]=e.target.value;save()}if(e.target.classList.contains('task-name'))autoGrow(e.target)}return}if(e.target.id==='calendarSearch'){const r=$('#view-calendar');r.dataset.q=e.target.value;renderCalendar();return}if(e.target.id==='taskSearch'){const r=$('#view-tasks');r.dataset.q=e.target.value;renderTasks()}if(e.target.id==='lessonSearch'){$('#view-subjects').dataset.lquery=e.target.value;renderNotebook();const si=$('#lessonSearch');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}return}if(e.target.id==='subjectsSearch'){$('#view-subjects').dataset.sq=e.target.value;renderSubjects();const si=$('#subjectsSearch');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}return}if(e.target.id==='notesSearch'){$('#view-notes').dataset.q=e.target.value;renderNotes();const ni=$('#notesSearch');if(ni){ni.focus();ni.setSelectionRange(ni.value.length,ni.value.length)}return}if(e.target.id==='lessonTitle'||e.target.id==='lessonBody'){const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);if(n){if(e.target.id==='lessonTitle')n.title=e.target.value;else n.body=e.target.innerHTML;n.updated=Date.now();markEditedNow();save();}return}if(e.target.id==='gnTitle'||e.target.id==='gnBody'){const n=currentGeneralNote;if(n){if(e.target.id==='gnTitle')n.title=e.target.value;else n.body=e.target.innerHTML;n.updated=Date.now();markEditedNow();save();}return}});
+document.addEventListener('input',e=>{if((e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')&&e.target.dataset.field){const tr=e.target.closest('tr[data-task-id]');if(tr){const t=state.tasks.tasks.find(x=>x.id===tr.dataset.taskId);if(t){const f=e.target.dataset.field;if(f==='submissionOther')t.submission=e.target.value;else t[f]=e.target.value;save()}if(e.target.classList.contains('task-name'))autoGrow(e.target)}return}if(e.target.id==='calendarSearch'){const r=$('#view-calendar');r.dataset.q=e.target.value;renderCalendar();return}if(e.target.id==='taskSearch'){const r=$('#view-tasks');r.dataset.q=e.target.value;renderTasks()}if(e.target.id==='lessonSearch'){$('#view-subjects').dataset.lquery=e.target.value;renderNotebook();const si=$('#lessonSearch');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}return}if(e.target.id==='subjectsSearch'){$('#view-subjects').dataset.sq=e.target.value;renderSubjects();const si=$('#subjectsSearch');if(si){si.focus();si.setSelectionRange(si.value.length,si.value.length)}return}if(e.target.id==='notesSearch'){$('#view-notes').dataset.q=e.target.value;renderNotes();const ni=$('#notesSearch');if(ni){ni.focus();ni.setSelectionRange(ni.value.length,ni.value.length)}return}if(e.target.id==='lessonTitle'||e.target.id==='lessonBody'){const s=state.notes.subjects[state.selectedSubject],n=s?.notes?.find(x=>x.id===state.selectedNote);if(n){if(e.target.id==='lessonTitle')n.title=e.target.value;else n.body=editorBodyHtml(e.target);n.updated=Date.now();markEditedNow();save();}return}if(e.target.id==='gnTitle'||e.target.id==='gnBody'){const n=currentGeneralNote;if(n){if(e.target.id==='gnTitle')n.title=e.target.value;else n.body=editorBodyHtml(e.target);n.updated=Date.now();markEditedNow();save();}return}});
 document.addEventListener('change',e=>{
 // Deadline time chosen in the clock picker: store it ("HH:MM") and refresh the row's deadline status.
 const taskTimeField=e.target.closest?.('tr[data-task-id] .clock-field');
