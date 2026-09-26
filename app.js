@@ -170,17 +170,75 @@ function fileKind(type,name){type=type||'';name=(name||'').toLowerCase();if(type
 const FILE_ICONS={image:'🖼️',pdf:'📕',doc:'📄',ppt:'📊',sheet:'📈',zip:'🗜️',file:'📎'};
 function stripHtml(html){const d=document.createElement('div');d.innerHTML=html||'';return d.textContent||''}
 function relTime(ts){if(!ts)return '';const s=Math.round((Date.now()-ts)/1000);if(s<45)return 'just now';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<604800)return Math.round(s/86400)+'d ago';return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
-function editorToolbarHtml(idp){return `<div class="editor-toolbar" data-target="${idp}Body"><button type="button" data-cmd="bold" title="Bold"><b>B</b></button><button type="button" data-cmd="italic" title="Italic"><i>I</i></button><button type="button" data-cmd="underline" title="Underline"><u>U</u></button><button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>${highlightMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="formatBlock" data-val="H2" title="Heading">H2</button><button type="button" data-cmd="formatBlock" data-val="H3" title="Subheading">H3</button><button type="button" data-cmd="formatBlock" data-val="P" title="Paragraph">¶</button><span class="tb-sep"></span><button type="button" data-cmd="insertUnorderedList" title="Bullet list">☰</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button><button type="button" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Quote">❝</button><span class="tb-sep"></span><button type="button" data-cmd="createLink" title="Add link">🔗</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button></div>`}
+const tbIco=d=>`<svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+const ALIGNS=[['justifyLeft','Align left','M4 6h16M4 10h10M4 14h16M4 18h10'],['justifyCenter','Align center','M4 6h16M7 10h10M4 14h16M7 18h10'],['justifyRight','Align right','M4 6h16M10 10h10M4 14h16M10 18h10'],['justifyFull','Justify','M4 6h16M4 10h16M4 14h16M4 18h16']];
+const TABLE_GRID=6;
+function alignMenuHtml(){return `<span class="tb-pop"><button type="button" data-menu-toggle title="Text alignment" aria-label="Text alignment" aria-haspopup="true" aria-expanded="false">${tbIco(ALIGNS[0][2])}</button><div class="tb-menu align-menu" role="group" aria-label="Text alignment" hidden>${ALIGNS.map(([cmd,label,d])=>`<button type="button" data-cmd="${cmd}" title="${label}" aria-label="${label}">${tbIco(d)}</button>`).join('')}</div></span>`}
+// Table: pick a size on the grid to insert one; the row/column buttons work on the table the caret is in.
+function tableMenuHtml(){
+ let cells='';for(let r=1;r<=TABLE_GRID;r++)for(let c=1;c<=TABLE_GRID;c++)cells+=`<button type="button" data-cmd="insertTable" data-val="${r}x${c}" data-r="${r}" data-c="${c}" aria-label="Insert ${r} by ${c} table"></button>`;
+ const act=(v,label,cls='')=>`<button type="button" class="${cls}" data-cmd="tableAction" data-val="${v}">${label}</button>`;
+ return `<span class="tb-pop"><button type="button" data-menu-toggle title="Table" aria-label="Table" aria-haspopup="true" aria-expanded="false">${tbIco('M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10h18M3 15h18M9 4v16M15 4v16')}</button><div class="tb-menu table-menu" role="group" aria-label="Table" hidden><div class="tbl-grid">${cells}</div><div class="tbl-size">Insert table</div><div class="tbl-actions">${act('rowBelow','+ Row below')}${act('colRight','+ Column right')}${act('delRow','− Delete row')}${act('delCol','− Delete column')}${act('delTable','Delete table','tbl-del')}</div></div></span>`;
+}
+function editorToolbarHtml(idp){return `<div class="editor-toolbar" data-target="${idp}Body"><button type="button" data-cmd="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${tbIco('M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')}</button><button type="button" data-cmd="redo" title="Redo (Ctrl+Y)" aria-label="Redo">${tbIco('m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')}</button><span class="tb-sep"></span><button type="button" data-cmd="bold" title="Bold"><b>B</b></button><button type="button" data-cmd="italic" title="Italic"><i>I</i></button><button type="button" data-cmd="underline" title="Underline"><u>U</u></button><button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>${highlightMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="formatBlock" data-val="H2" title="Heading">H2</button><button type="button" data-cmd="formatBlock" data-val="H3" title="Subheading">H3</button><button type="button" data-cmd="formatBlock" data-val="P" title="Paragraph">¶</button>${alignMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="insertUnorderedList" title="Bullet list">☰</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button><button type="button" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Quote">❝</button>${tableMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="createLink" title="Add link">🔗</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button></div>`}
 // Highlighter: light colours only, so dark text stays readable on them (in dark mode too, see styles.css).
 const HIGHLIGHTS=[['Yellow','#fff3a3'],['Green','#d4f5d0'],['Blue','#d6ebff'],['Pink','#ffd9e8'],['Orange','#ffe2c4'],['Purple','#e9dcff']];
-function highlightMenuHtml(){return `<span class="tb-sep"></span><span class="tb-hl"><button type="button" data-hl-toggle title="Highlight" aria-label="Highlight" aria-haspopup="true" aria-expanded="false"><span class="hl-icon">ab</span></button><div class="hl-menu" role="group" aria-label="Highlight colours" hidden>${HIGHLIGHTS.map(([name,c])=>`<button type="button" class="hl-swatch" data-cmd="hiliteColor" data-val="${c}" style="background:${c}" title="${name}" aria-label="${name} highlight"></button>`).join('')}<button type="button" class="hl-swatch hl-none" data-cmd="hiliteColor" data-val="transparent" title="No highlight" aria-label="Remove highlight"></button></div></span>`}
-function toggleHighlightMenu(btn,open){closeHighlightMenus();if(!open)return;btn.setAttribute('aria-expanded','true');btn.nextElementSibling.hidden=false}
-function closeHighlightMenus(){document.querySelectorAll('.hl-menu:not([hidden])').forEach(m=>{m.hidden=true;m.previousElementSibling.setAttribute('aria-expanded','false')})}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.hl-menu:not([hidden])')){e.stopPropagation();closeHighlightMenus()}},true);
+function highlightMenuHtml(){return `<span class="tb-sep"></span><span class="tb-pop"><button type="button" data-menu-toggle title="Highlight" aria-label="Highlight" aria-haspopup="true" aria-expanded="false"><span class="hl-icon">ab</span></button><div class="tb-menu hl-menu" role="group" aria-label="Highlight colours" hidden>${HIGHLIGHTS.map(([name,c])=>`<button type="button" class="hl-swatch" data-cmd="hiliteColor" data-val="${c}" style="background:${c}" title="${name}" aria-label="${name} highlight"></button>`).join('')}<button type="button" class="hl-swatch hl-none" data-cmd="hiliteColor" data-val="transparent" title="No highlight" aria-label="Remove highlight"></button></div></span>`}
+function toggleToolbarMenu(btn,open){
+ closeToolbarMenus();if(!open)return;
+ const menu=btn.nextElementSibling;btn.setAttribute('aria-expanded','true');menu.hidden=false;
+ // Row/column buttons only make sense with the caret inside a table.
+ const acts=menu.querySelectorAll('[data-cmd="tableAction"]');
+ if(acts.length){const ed=document.getElementById(btn.closest('.editor-toolbar').dataset.target);const inTable=!!(ed&&cellAtCaret(ed));acts.forEach(a=>a.disabled=!inTable)}
+}
+// Table grid: light up the cells up to the hovered one, like a word processor's size picker.
+document.addEventListener('mouseover',e=>{
+ const cell=e.target.closest?.('.tbl-grid button');if(!cell)return;
+ const grid=cell.parentElement,r=+cell.dataset.r,c=+cell.dataset.c;
+ grid.querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.r<=r&&+b.dataset.c<=c));
+ grid.nextElementSibling.textContent=`${r} × ${c} table`;
+});
+function cellAtCaret(editor){
+ const s=getSelection();if(!s.rangeCount)return null;
+ const n=s.getRangeAt(0).startContainer,el=n.nodeType===1?n:n.parentElement,cell=el?.closest('td,th');
+ return cell&&editor.contains(cell)?cell:null;
+}
+function placeCaret(el){const r=document.createRange();r.selectNodeContents(el);r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r)}
+function insertTable(editor,rows,cols){
+ const row=`<tr>${'<td><br></td>'.repeat(cols)}</tr>`;
+ document.execCommand('insertHTML',false,`<table class="note-table" data-new-table><tbody>${row.repeat(rows)}</tbody></table><p><br></p>`);
+ const t=editor.querySelector('table[data-new-table]');
+ if(t){t.removeAttribute('data-new-table');placeCaret(t.rows[0].cells[0])}
+}
+// Row and column changes edit the table directly, so Ctrl+Z / Undo does not step back through them.
+function tableAction(editor,action){
+ const cell=cellAtCaret(editor);if(!cell)return;
+ const row=cell.parentElement,table=cell.closest('table'),col=cell.cellIndex;
+ const blank=()=>{const td=document.createElement('td');td.innerHTML='<br>';return td};
+ const removeTable=()=>{const p=document.createElement('p');p.innerHTML='<br>';table.replaceWith(p);placeCaret(p)};
+ if(action==='rowBelow'){const tr=document.createElement('tr');for(let i=0;i<row.cells.length;i++)tr.appendChild(blank());row.after(tr);placeCaret(tr.cells[Math.min(col,tr.cells.length-1)])}
+ else if(action==='colRight'){[...table.rows].forEach(r=>{const ref=r.cells[col],td=blank();ref?ref.after(td):r.appendChild(td)});placeCaret(row.cells[col+1])}
+ else if(action==='delRow'){if(table.rows.length<=1)return removeTable();const next=row.nextElementSibling||row.previousElementSibling;row.remove();placeCaret(next.cells[Math.min(col,next.cells.length-1)])}
+ else if(action==='delCol'){if(row.cells.length<=1)return removeTable();[...table.rows].forEach(r=>r.cells[col]?.remove());placeCaret(row.cells[Math.max(0,col-1)])}
+ else if(action==='delTable')removeTable();
+}
+// Tab / Shift+Tab move between table cells; Tab in the last cell adds a row.
+document.addEventListener('keydown',e=>{
+ if(e.key!=='Tab'||e.altKey||e.ctrlKey||e.metaKey)return;
+ const editor=e.target.closest?.('.note-editor');if(!editor)return;
+ const cell=cellAtCaret(editor);if(!cell)return;
+ e.preventDefault();
+ const cells=[...cell.closest('table').querySelectorAll('td,th')],i=cells.indexOf(cell);
+ if(e.shiftKey){if(i>0)placeCaret(cells[i-1]);return}
+ if(i<cells.length-1)placeCaret(cells[i+1]);
+ else{tableAction(editor,'rowBelow');editor.dispatchEvent(new Event('input',{bubbles:true}))}
+});
+function closeToolbarMenus(){document.querySelectorAll('.tb-menu:not([hidden])').forEach(m=>{m.hidden=true;m.previousElementSibling.setAttribute('aria-expanded','false')})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.tb-menu:not([hidden])')){e.stopPropagation();closeToolbarMenus()}},true);
 const pdfButtonHtml=prefix=>`<button type="button" class="lesson-action lesson-pdf" data-note-pdf="${prefix}" title="Save as PDF" aria-label="Save as PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>PDF</button>`;
 // Save as PDF: print only this note (title, subject, date, text and pictures) from a hidden frame. The print
 // dialog's "Save as PDF" destination makes the file; the frame's title becomes the suggested file name.
-const PRINT_CSS=`@page{margin:18mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;font:12pt/1.6 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#17212b}h1{font-size:22pt;line-height:1.2;margin:0 0 4pt}.meta{color:#6c7785;font-size:10pt;margin:0 0 16pt;padding-bottom:10pt;border-bottom:1px solid #e4e9ed}h2{font-size:15pt;margin:14pt 0 4pt}h3{font-size:13pt;margin:12pt 0 4pt}p{margin:0 0 8pt}ul,ol{margin:0 0 8pt;padding-left:18pt}blockquote{margin:8pt 0;padding:6pt 12pt;border-left:3px solid #367e83;background:#eef6f6;color:#4a5560}a{color:#367e83}img{max-width:100%;max-height:230mm;border-radius:6px;margin:4pt 0;break-inside:avoid}h1,h2,h3{break-after:avoid}`;
+const PRINT_CSS=`@page{margin:18mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;font:12pt/1.6 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#17212b}h1{font-size:22pt;line-height:1.2;margin:0 0 4pt}.meta{color:#6c7785;font-size:10pt;margin:0 0 16pt;padding-bottom:10pt;border-bottom:1px solid #e4e9ed}h2{font-size:15pt;margin:14pt 0 4pt}h3{font-size:13pt;margin:12pt 0 4pt}p{margin:0 0 8pt}ul,ol{margin:0 0 8pt;padding-left:18pt}blockquote{margin:8pt 0;padding:6pt 12pt;border-left:3px solid #367e83;background:#eef6f6;color:#4a5560}a{color:#367e83}img{max-width:100%;max-height:230mm;border-radius:6px;margin:4pt 0;break-inside:avoid}h1,h2,h3{break-after:avoid}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:6pt 0 10pt;break-inside:auto}tr{break-inside:avoid}td,th{border:1px solid #cfd7dd;padding:5pt 7pt;vertical-align:top;overflow-wrap:anywhere}th{background:#f3f6f8}`;
 async function saveNoteAsPdf(prefix){
  const n=resolveNote(prefix),body=$('#'+prefix+'Body');if(!n||!body)return;
  const title=($('#'+prefix+'Title')?.value||n.title||'').trim()||'Untitled note';
@@ -757,8 +815,28 @@ function renderTasks(){
  <div class="task-sheet-tabs" role="tablist">${subjectTabs}</div>
  <div class="toolbar task-tools"><input class="input" id="taskSearch" value="${esc(q)}" placeholder="Search this sheet…"><select class="select" id="taskStatus"><option value="">All statuses</option>${['Not Started','In Progress','Done'].map(x=>`<option ${status===x?'selected':''}>${x}</option>`).join('')}</select><select class="select" id="taskPriority"><option value="">All priorities</option>${['High','Medium','Low'].map(x=>`<option ${pri===x?'selected':''}>${x}</option>`).join('')}</select><span class="grow"></span><span class="pill">${base.length} shown</span><button class="ghost" data-clear-done>Clear completed</button></div>
  <div class="card task-sheet-card"><div class="sheet-caption"><div><b>${active==='all'?'All Subjects':esc(taskSubject(active))}</b><span>Type straight into any cell, just like a spreadsheet — it saves automatically.</span></div><span class="pill">Auto-saved</span></div>
- <div class="sheet-scroll"><table class="task-sheet"><thead><tr><th>Subject & Tasks</th><th>TYPE</th><th>DATE ASSIGNED</th><th>DUE DATE</th><th>DEADLINE</th><th>PRIORITY</th><th>PROGRESS / STATUS</th><th>DAYS LEFT</th><th>NOTES / LINK</th><th>TYPE OF SUBMISSION</th><th>NOTES AND RESOURCES</th><th class="actions-col"></th></tr></thead><tbody>${base.map(taskRow).join('')||`<tr><td colspan="12"><div class="empty">No tasks in this sheet yet. Click <b>+ Add task</b> to create one.</div></td></tr>`}</tbody></table></div></div>`;
+ <div class="sheet-scroll-wrap"><div class="sheet-scroll" tabindex="0" aria-label="Task table — scroll sideways to see more columns"><table class="task-sheet"><thead><tr><th>Subject & Tasks</th><th>TYPE</th><th>DATE ASSIGNED</th><th>DUE DATE</th><th>DEADLINE</th><th>PRIORITY</th><th>PROGRESS / STATUS</th><th>DAYS LEFT</th><th>NOTES / LINK</th><th>TYPE OF SUBMISSION</th><th>NOTES AND RESOURCES</th><th class="actions-col"></th></tr></thead><tbody>${base.map(taskRow).join('')||`<tr><td colspan="12"><div class="empty">No tasks in this sheet yet. Click <b>+ Add task</b> to create one.</div></td></tr>`}</tbody></table></div></div></div>`;
  root.querySelectorAll('.task-name').forEach(autoGrow);
+ setupSheetScroll(root);
+}
+// Tasks table scrolls sideways inside its own container (styled scrollbar in styles.css). Edge fades show
+// while more columns are hidden in that direction; the left one starts after the sticky first column.
+let sheetResizeObserver=null;
+function setupSheetScroll(root){
+ const wrap=root.querySelector('.sheet-scroll-wrap'),sc=wrap?.querySelector('.sheet-scroll');if(!sc)return;
+ const update=()=>{
+  const first=sc.querySelector('th:first-child');
+  wrap.style.setProperty('--fade-left',(first&&getComputedStyle(first).position==='sticky'?first.offsetWidth:0)+'px');
+  wrap.style.setProperty('--fade-bottom',(sc.offsetHeight-sc.clientHeight)+'px');// keep the fades off the scrollbar
+  const max=sc.scrollWidth-sc.clientWidth;
+  wrap.classList.toggle('more-left',sc.scrollLeft>1);
+  wrap.classList.toggle('more-right',sc.scrollLeft<max-1);
+ };
+ sc.addEventListener('scroll',update,{passive:true});
+ // Also re-checks when the window resizes or the Tasks view is shown again.
+ sheetResizeObserver?.disconnect();
+ if('ResizeObserver' in window){sheetResizeObserver=new ResizeObserver(update);sheetResizeObserver.observe(sc)}
+ update();
 }
 function submissionCellHtml(t,forceOther){
  const known=SUBMISSION_TYPES.includes(t.submission);
@@ -1000,7 +1078,7 @@ function wire(){ $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>{
 function quickAdd(){openModal('What do you want to add?','<div class="grid" style="grid-template-columns:1fr 1fr"><button class="card" style="padding:25px;border:1px solid var(--line)" id="qaTask"><b>✓ Task</b><div style="color:var(--muted);font-size:11px;margin-top:5px">Add a deadline or school requirement</div></button><button class="card" style="padding:25px;border:1px solid var(--line)" id="qaEvent"><b>▦ Event</b><div style="color:var(--muted);font-size:11px;margin-top:5px">Add a class, exam or plan</div></button></div>');$('#qaTask').onclick=()=>{$('#modalRoot').innerHTML='';addTaskRow()};$('#qaEvent').onclick=()=>eventModal()}
 function quickSearch(){openModal('Search your planner','<input class="input" id="globalQ" style="width:100%" placeholder="Search tasks, events and notes…"><div id="globalResults" style="margin-top:12px"></div>');const q=$('#globalQ');q.focus();q.oninput=()=>{const x=q.value.toLowerCase().trim();const r=[];state.tasks.tasks.forEach(t=>{if((t.task+' '+taskSubject(t.subject)+' '+(t.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(t.task)}</b><span>Task · ${esc(taskSubject(t.subject))}</span></div></div>`)});state.calendar.events.forEach(e=>{if((e.title+' '+(e.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(e.title)}</b><span>Event · ${fmtDate(e.date)}</span></div></div>`)});$('#globalResults').innerHTML=r.slice(0,12).join('')||'<div class="empty">No matches.</div>'}}
 
-document.addEventListener('mousedown',e=>{if(e.target.closest('.editor-toolbar button[data-cmd],.editor-toolbar [data-hl-toggle]'))e.preventDefault()});
+document.addEventListener('mousedown',e=>{if(e.target.closest('.editor-toolbar button[data-cmd],.editor-toolbar [data-menu-toggle]'))e.preventDefault()});
 // Images pasted or dropped into a lesson or note show as small thumbnails; clicking one opens it full size
 // on top of everything (including the note popup). Escape, × or a click outside the image closes it.
 function openImageViewer(src,alt,returnFocus){
@@ -1059,9 +1137,9 @@ const pinGeneral=e.target.closest('[data-pin-general]');
 if(pinGeneral){const n=(state.notes.general||[]).find(x=>x.id===pinGeneral.dataset.pinGeneral);if(n){n.pinned=!n.pinned;save();renderNotes()}return}
 const lessonPinBtn=e.target.closest('#lessonPin');
 if(lessonPinBtn){const s=state.notes.subjects[state.selectedSubject];const n=s&&s.notes&&s.notes.find(x=>x.id===state.selectedNote);if(n){n.pinned=!n.pinned;save();renderNotebook()}return}
-const hlToggle=e.target.closest('[data-hl-toggle]');
-if(hlToggle){toggleHighlightMenu(hlToggle,hlToggle.getAttribute('aria-expanded')!=='true');return}
-if(!e.target.closest('.tb-hl'))closeHighlightMenus();
+const menuToggle=e.target.closest('[data-menu-toggle]');
+if(menuToggle){toggleToolbarMenu(menuToggle,menuToggle.getAttribute('aria-expanded')!=='true');return}
+if(!e.target.closest('.tb-pop'))closeToolbarMenus();
 const pdfBtn=e.target.closest('[data-note-pdf]');
 if(pdfBtn){saveNoteAsPdf(pdfBtn.dataset.notePdf);return}
 const tbBtn=e.target.closest('.editor-toolbar button[data-cmd]');
@@ -1078,9 +1156,11 @@ if(tbBtn){
    document.execCommand('styleWithCSS',false,true);
    document.execCommand('hiliteColor',false,tbBtn.dataset.val);
    document.execCommand('styleWithCSS',false,false);
-   closeHighlightMenus();
   }
+  else if(cmd==='insertTable'){const [r,c]=tbBtn.dataset.val.split('x').map(Number);insertTable(editor,r,c)}
+  else if(cmd==='tableAction')tableAction(editor,tbBtn.dataset.val);
   else document.execCommand(cmd,false,null);
+  closeToolbarMenus();
   editor.dispatchEvent(new Event('input',{bubbles:true}));
  }
  return;
