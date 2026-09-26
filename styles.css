@@ -395,3 +395,12 @@ body.dark .sheet-scroll-wrap::after{background:linear-gradient(to left,rgba(0,0,
 .nb-prof input::placeholder{color:var(--muted);font-weight:500}
 .subject-edit{flex-wrap:wrap}
 .subject-edit .subject-prof-input{flex:1 1 150px;font-size:13px}
+/* Subject cards: "open tasks" sits in the normal flow at the bottom, so it lines up with the text above it
+   (same left padding on every screen size) and moves down instead of overlapping when the text is longer. */
+.subject-card{display:flex;flex-direction:column}
+.subject-card .subject-icon{flex:none;align-self:flex-start}
+.subject-card .count{position:static;margin-top:auto;padding-top:12px}
+/* Calendar: the month and year (or week range) is the heading of the page, so it reads large */
+.calendar-title{margin-left:6px;font-size:26px;line-height:1.15;letter-spacing:-.02em}
+.calendar-title b{font-weight:800}
+@media(max-width:760px){.calendar-title{margin:4px 0 0;font-size:22px}}
