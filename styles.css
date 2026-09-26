@@ -407,3 +407,5 @@ body.dark .sheet-scroll-wrap::after{background:linear-gradient(to left,rgba(0,0,
 .calendar-title{margin-left:6px;font-size:26px;line-height:1.15;letter-spacing:-.02em}
 .calendar-title b{font-weight:800}
 @media(max-width:760px){.calendar-title{margin:4px 0 0;font-size:22px}}
+/* Heading / Normal text (T) buttons: the style the caret is in is highlighted */
+.editor-toolbar button.is-active{background:var(--accent-soft);color:var(--accent)}
