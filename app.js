@@ -188,12 +188,22 @@ const GUEST_KEY=KEY+':guest';
 const isLegacyOwner=user=>(user?.email||'').toLowerCase()===LEGACY_OWNER_EMAIL;
 const localKey=()=>cloudUser?KEY+':'+cloudUser.uid:GUEST_KEY;
 const cloudRef=()=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc('main'):null;
-const plannerPayload=()=>({owner:cloudUser.uid,calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+const plannerPayload=()=>({owner:cloudUser.uid,calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,savedAt:state.savedAt||0,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+// Set on every edit and cleared once the cloud has it. If the page is refreshed or closed before the upload
+// finishes, the next load sees this and keeps this device's newer copy instead of the older cloud one.
+const unsyncedKey=()=>localKey()+':unsynced';
+function markUnsynced(on){try{on?localStorage.setItem(unsyncedKey(),'1'):localStorage.removeItem(unsyncedKey())}catch{}}
+function hasUnsynced(){try{return localStorage.getItem(unsyncedKey())==='1'}catch{return false}}
 // The sidebar indicator, mirrored next to "Last edited" in whichever lesson or note editor is open.
 function setSaveStatus(text){const e=$('#saveIndicator');if(e)e.innerHTML=`<i></i><span>${esc(text)}</span>`;document.querySelectorAll('.note-save-status').forEach(x=>x.textContent=text)}
 function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
-function writeLocal(){try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}catch{}}
+function writeLocal(){
+  try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,savedAt:state.savedAt||0}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}
+  catch{if(!writeLocal.warned){writeLocal.warned=true;toast('This browser’s storage is full, so recent edits may not be kept here. Remove large pictures from your notes.')}}
+}
 function save(){
+  state.savedAt=Date.now();
+  if(cloudUser)markUnsynced(true);
   writeLocal();
   if(cloudUser&&cloudLoaded&&db){
     // Offline, the upload waits until the connection is back; the local copy is already written.
@@ -210,12 +220,15 @@ async function saveToCloud(){
   try{
     await ref.set(plannerPayload());
     // Only say "Saved" once no newer edit is still waiting or uploading.
-    if(cloudSavesInFlight===1&&!cloudSaveTimer)setSaveStatus('Saved to cloud');
+    if(cloudSavesInFlight===1&&!cloudSaveTimer){markUnsynced(false);setSaveStatus('Saved to cloud')}
     return true;
   }catch(err){
     console.error('Cloud save failed:',err);
     setSaveStatus('Saved on this device');
-    toast('Cloud save failed — your local copy is safe.');
+    // The whole planner is one cloud record, capped at 1 MB; pictures in notes are what usually fill it.
+    toast(err?.code==='invalid-argument'&&/size|bytes/i.test(err.message||'')
+      ?'Your planner is too big to sync (pictures take the most room). It’s still saved on this device.'
+      :'Cloud save failed — your local copy is safe.');
     return false;
   }finally{cloudSavesInFlight--}
 }
@@ -240,6 +253,7 @@ function applyData(data){
   state.notes={notes:[],subjects:{}};
   state.settings={theme,subjects:[],accent:'#367e83'};
   state.selectedSubject=null;state.selectedNote=null;
+  state.savedAt=data?.savedAt||0;
   if(data){
     if(data.calendar)state.calendar=data.calendar;
     if(data.tasks)state.tasks=data.tasks;
@@ -275,12 +289,17 @@ async function loadCloudForUser(user){
     const snap=await cloudRef().get();
     if(seq!==authSeq)return;
     const owner=isLegacyOwner(user);
-    let needsWrite=false;
+    let needsWrite=false,keptLocal=false;
     if(snap.exists){
       const x=snap.data()||{};
       if(x.owner===user.uid||(!x.owner&&owner)){
-        applyData(x);
-        needsWrite=!x.owner;
+        // Edits made on this device that never reached the cloud (the page was refreshed or closed
+        // mid-upload, or the upload failed) are newer than the cloud copy: keep them and upload them.
+        const local=readLocal(localKey());
+        keptLocal=!!local&&hasUnsynced()&&(local.savedAt||0)>(x.savedAt||0);
+        applyData(keptLocal?local:x);
+        needsWrite=!x.owner||keptLocal;
+        if(!keptLocal)markUnsynced(false);
       }else{
         // Old bug copied another account's planner into this one. Start this account fresh.
         applyData(null);
@@ -292,10 +311,11 @@ async function loadCloudForUser(user){
     }
     cloudLoaded=true;
     writeLocal();
-    if(needsWrite)await saveToCloud();
+    const uploaded=needsWrite?await saveToCloud():true;
     if(seq!==authSeq)return;
     if(owner)try{localStorage.removeItem(KEY)}catch{}
-    setSaveStatus(snap.exists?'Synced from cloud':'Saved to cloud');
+    setSaveStatus(!uploaded?'Saved on this device':snap.exists&&!keptLocal?'Synced from cloud':'Saved to cloud');
+    if(keptLocal&&uploaded)toast('Restored your latest edits from this device.');
     refreshUI();
   }catch(err){
     if(seq!==authSeq)return;
