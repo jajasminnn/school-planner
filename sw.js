@@ -1,4 +1,4 @@
-const CACHE='school-planner-v34-note-autosave-status';
+const CACHE='school-planner-v35-dashboard-deadline-time';
 const ASSETS=['./','./index.html','./app.html','./login.html','./landing.css','./landing.js','./styles.css','./app.js','./login.js','./firebase-config.js','./session.js','./manifest.json','./logo.png','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 const NETWORK_FIRST=['./index.html','./app.html','./login.html','./landing.css','./landing.js','./firebase-config.js','./session.js','./app.js','./login.js','./styles.css'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS.map(u=>new Request(u,{cache:'reload'})))).then(()=>self.skipWaiting())));
