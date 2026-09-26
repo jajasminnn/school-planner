@@ -170,7 +170,34 @@ function fileKind(type,name){type=type||'';name=(name||'').toLowerCase();if(type
 const FILE_ICONS={image:'🖼️',pdf:'📕',doc:'📄',ppt:'📊',sheet:'📈',zip:'🗜️',file:'📎'};
 function stripHtml(html){const d=document.createElement('div');d.innerHTML=html||'';return d.textContent||''}
 function relTime(ts){if(!ts)return '';const s=Math.round((Date.now()-ts)/1000);if(s<45)return 'just now';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<604800)return Math.round(s/86400)+'d ago';return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
-function editorToolbarHtml(idp){return `<div class="editor-toolbar" data-target="${idp}Body"><button type="button" data-cmd="bold" title="Bold"><b>B</b></button><button type="button" data-cmd="italic" title="Italic"><i>I</i></button><button type="button" data-cmd="underline" title="Underline"><u>U</u></button><button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button><span class="tb-sep"></span><button type="button" data-cmd="formatBlock" data-val="H2" title="Heading">H2</button><button type="button" data-cmd="formatBlock" data-val="H3" title="Subheading">H3</button><button type="button" data-cmd="formatBlock" data-val="P" title="Paragraph">¶</button><span class="tb-sep"></span><button type="button" data-cmd="insertUnorderedList" title="Bullet list">☰</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button><button type="button" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Quote">❝</button><span class="tb-sep"></span><button type="button" data-cmd="createLink" title="Add link">🔗</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button></div>`}
+function editorToolbarHtml(idp){return `<div class="editor-toolbar" data-target="${idp}Body"><button type="button" data-cmd="bold" title="Bold"><b>B</b></button><button type="button" data-cmd="italic" title="Italic"><i>I</i></button><button type="button" data-cmd="underline" title="Underline"><u>U</u></button><button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>${highlightMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="formatBlock" data-val="H2" title="Heading">H2</button><button type="button" data-cmd="formatBlock" data-val="H3" title="Subheading">H3</button><button type="button" data-cmd="formatBlock" data-val="P" title="Paragraph">¶</button><span class="tb-sep"></span><button type="button" data-cmd="insertUnorderedList" title="Bullet list">☰</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button><button type="button" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Quote">❝</button><span class="tb-sep"></span><button type="button" data-cmd="createLink" title="Add link">🔗</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button></div>`}
+// Highlighter: light colours only, so dark text stays readable on them (in dark mode too, see styles.css).
+const HIGHLIGHTS=[['Yellow','#fff3a3'],['Green','#d4f5d0'],['Blue','#d6ebff'],['Pink','#ffd9e8'],['Orange','#ffe2c4'],['Purple','#e9dcff']];
+function highlightMenuHtml(){return `<span class="tb-sep"></span><span class="tb-hl"><button type="button" data-hl-toggle title="Highlight" aria-label="Highlight" aria-haspopup="true" aria-expanded="false"><span class="hl-icon">ab</span></button><div class="hl-menu" role="group" aria-label="Highlight colours" hidden>${HIGHLIGHTS.map(([name,c])=>`<button type="button" class="hl-swatch" data-cmd="hiliteColor" data-val="${c}" style="background:${c}" title="${name}" aria-label="${name} highlight"></button>`).join('')}<button type="button" class="hl-swatch hl-none" data-cmd="hiliteColor" data-val="transparent" title="No highlight" aria-label="Remove highlight"></button></div></span>`}
+function toggleHighlightMenu(btn,open){closeHighlightMenus();if(!open)return;btn.setAttribute('aria-expanded','true');btn.nextElementSibling.hidden=false}
+function closeHighlightMenus(){document.querySelectorAll('.hl-menu:not([hidden])').forEach(m=>{m.hidden=true;m.previousElementSibling.setAttribute('aria-expanded','false')})}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.hl-menu:not([hidden])')){e.stopPropagation();closeHighlightMenus()}},true);
+const pdfButtonHtml=prefix=>`<button type="button" class="lesson-action lesson-pdf" data-note-pdf="${prefix}" title="Save as PDF" aria-label="Save as PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>PDF</button>`;
+// Save as PDF: print only this note (title, subject, date, text and pictures) from a hidden frame. The print
+// dialog's "Save as PDF" destination makes the file; the frame's title becomes the suggested file name.
+const PRINT_CSS=`@page{margin:18mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;font:12pt/1.6 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#17212b}h1{font-size:22pt;line-height:1.2;margin:0 0 4pt}.meta{color:#6c7785;font-size:10pt;margin:0 0 16pt;padding-bottom:10pt;border-bottom:1px solid #e4e9ed}h2{font-size:15pt;margin:14pt 0 4pt}h3{font-size:13pt;margin:12pt 0 4pt}p{margin:0 0 8pt}ul,ol{margin:0 0 8pt;padding-left:18pt}blockquote{margin:8pt 0;padding:6pt 12pt;border-left:3px solid #367e83;background:#eef6f6;color:#4a5560}a{color:#367e83}img{max-width:100%;max-height:230mm;border-radius:6px;margin:4pt 0;break-inside:avoid}h1,h2,h3{break-after:avoid}`;
+async function saveNoteAsPdf(prefix){
+ const n=resolveNote(prefix),body=$('#'+prefix+'Body');if(!n||!body)return;
+ const title=($('#'+prefix+'Title')?.value||n.title||'').trim()||'Untitled note';
+ const subject=prefix==='lesson'?state.settings.subjects.find(s=>s.id===state.selectedSubject)?.name:'';
+ const meta=[subject,new Date(n.updated||Date.now()).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'})].filter(Boolean).join(' · ');
+ // Pictures not yet shown in the editor are fetched; one that can't be found is left out.
+ const c=body.cloneNode(true);
+ await Promise.all([...c.querySelectorAll('img[data-img]')].map(async i=>{if(!i.getAttribute('src')){const s=await loadImageSrc(i.dataset.img);if(s)i.src=s;else i.remove()}}));
+ document.querySelectorAll('iframe.print-frame').forEach(f=>f.remove());
+ const f=document.createElement('iframe');f.className='print-frame';f.setAttribute('aria-hidden','true');f.tabIndex=-1;
+ document.body.appendChild(f);
+ const d=f.contentDocument;
+ d.open();d.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body><h1>${esc(title)}</h1>${meta?`<p class="meta">${esc(meta)}</p>`:''}<main>${c.innerHTML}</main></body></html>`);d.close();
+ await Promise.all([...d.images].map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r})));
+ f.contentWindow.addEventListener('afterprint',()=>setTimeout(()=>f.remove(),500));
+ f.contentWindow.focus();f.contentWindow.print();
+}
 function attachmentsHtml(note,prefix){const list=note.attachments||[];return `<div class="attach-panel" data-attach-owner="${prefix}"><div class="attach-head"><span>📎 Attachments${list.length?' ('+list.length+')':''}</span><label class="ghost attach-add">+ Add file<input type="file" multiple hidden class="attach-input" data-attach-target="${prefix}"></label></div><div class="attach-list">${list.map(a=>`<div class="attach-chip" data-attach-id="${a.id}"><span class="attach-icon">${FILE_ICONS[fileKind(a.type,a.name)]}</span><span class="attach-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="attach-size">${humanSize(a.size)}</span><button type="button" class="attach-open" data-attach-open="${a.id}" title="Open">↗</button><button type="button" class="attach-remove" data-attach-remove="${a.id}" title="Remove">✕</button></div>`).join('')||'<div class="attach-empty">No files attached yet. Lecture slides, PDFs and images stay saved on this device.</div>'}</div></div>`}
 function refreshAttachPanel(prefix,note){const panel=document.querySelector(`.attach-panel[data-attach-owner="${prefix}"]`);if(panel)panel.outerHTML=attachmentsHtml(note,prefix)}
 function resolveNote(prefix){if(prefix==='lesson'){const s=state.notes.subjects[state.selectedSubject];return (s&&s.notes&&s.notes.find(x=>x.id===state.selectedNote))||null}if(prefix==='gn')return currentGeneralNote;return null}
@@ -195,7 +222,18 @@ const unsyncedKey=()=>localKey()+':unsynced';
 function markUnsynced(on){try{on?localStorage.setItem(unsyncedKey(),'1'):localStorage.removeItem(unsyncedKey())}catch{}}
 function hasUnsynced(){try{return localStorage.getItem(unsyncedKey())==='1'}catch{return false}}
 // The sidebar indicator, mirrored next to "Last edited" in whichever lesson or note editor is open.
-function setSaveStatus(text){const e=$('#saveIndicator');if(e)e.innerHTML=`<i></i><span>${esc(text)}</span>`;document.querySelectorAll('.note-save-status').forEach(x=>x.textContent=text)}
+// Sync problems don't pop up: the indicator turns amber and clicking it explains (openSyncHelp).
+let syncProblem=null;// null | 'too-big' | 'failed'
+function setSaveStatus(text,problem=null){
+  syncProblem=problem;
+  const e=$('#saveIndicator');
+  if(e){
+    e.innerHTML=`<i></i><span>${esc(text)}</span>`;e.classList.toggle('warn',!!problem);
+    if(problem){e.setAttribute('role','button');e.tabIndex=0;e.title='Not syncing to the cloud — click for details'}
+    else{e.removeAttribute('role');e.removeAttribute('tabindex');e.removeAttribute('title')}
+  }
+  document.querySelectorAll('.note-save-status').forEach(x=>{x.textContent=text;x.classList.toggle('warn',!!problem)});
+}
 function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
 function writeLocal(){
   try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,savedAt:state.savedAt||0}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}
@@ -224,11 +262,9 @@ async function saveToCloud(){
     return true;
   }catch(err){
     console.error('Cloud save failed:',err);
-    setSaveStatus('Saved on this device');
-    // The whole planner is one cloud record, capped at 1 MB; pictures in notes are what usually fill it.
-    toast(err?.code==='invalid-argument'&&/size|bytes/i.test(err.message||'')
-      ?'Your planner is too big to sync (pictures take the most room). It’s still saved on this device.'
-      :'Cloud save failed — your local copy is safe.');
+    // The whole planner is one cloud record, capped at 1 MB. Either way the next edit tries again.
+    const tooBig=err?.code==='invalid-argument'&&/size|bytes/i.test(err.message||'');
+    setSaveStatus(tooBig?'Not synced · planner too big':'Not synced · saved on this device',tooBig?'too-big':'failed');
     return false;
   }finally{cloudSavesInFlight--}
 }
@@ -279,7 +315,7 @@ function pendingImages(){try{return JSON.parse(localStorage.getItem(pendingKey()
 function setPending(id,on){const ids=new Set(pendingImages());on?ids.add(id):ids.delete(id);try{ids.size?localStorage.setItem(pendingKey(),JSON.stringify([...ids])):localStorage.removeItem(pendingKey())}catch{}}
 async function uploadImage(id,src){
  if(!cloudUser)return;
- if(src.length>IMG_CLOUD_MAX){setPending(id,false);return toast('One picture is too big to sync, so it stays on this device only.')}
+ if(src.length>IMG_CLOUD_MAX){setPending(id,false);return console.warn('Picture too big to sync; it stays on this device only:',id)}
  const ref=imgRef(id);
  if(!ref||!cloudLoaded)return setPending(id,true);// uploaded once the cloud is ready (flushPendingImages)
  setPending(id,true);
@@ -319,16 +355,55 @@ function hydrateImages(root){
 // part of a larger block, or added before pictures had their own records) is given one here.
 function editorBodyHtml(editor){
  editor.querySelectorAll('img[src^="data:"]:not([data-img])').forEach(img=>{img.dataset.img=adoptImage(img.src,false,small=>{if(img.isConnected)img.src=small})});
+ // Other ways pasted content can carry a whole file inside the text: responsive-image sources,
+ // inline-style backgrounds and data: links. The picture itself (src) is kept above.
+ editor.querySelectorAll('img[srcset]').forEach(i=>i.removeAttribute('srcset'));
+ editor.querySelectorAll('source[srcset*="data:"]').forEach(x=>x.remove());
+ editor.querySelectorAll('[style*="data:"]').forEach(x=>x.removeAttribute('style'));
+ editor.querySelectorAll('a[href^="data:"]').forEach(a=>a.removeAttribute('href'));
  const c=editor.cloneNode(true);c.querySelectorAll('img[data-img]').forEach(i=>i.removeAttribute('src'));return c.innerHTML;
 }
-// Moves pictures out of every saved note's text. Returns true if any note changed.
+// Moves embedded pictures and files out of everything saved in the planner — lesson and general notes, older
+// note formats, event and task notes. Returns true if anything changed.
 function moveInlineImages(){
  let changed=false;
- const fix=n=>{if(!n?.body?.includes('src="data:'))return;const d=document.createElement('div');d.innerHTML=n.body;n.body=editorBodyHtml(d);changed=true};
- Object.values(state.notes.subjects||{}).forEach(s=>(s.notes||[]).forEach(fix));
- (state.notes.general||[]).forEach(fix);
+ const embedded=/<img|<source|url\(\s*['"]?data:|href=["']?data:/i;
+ const walk=o=>{
+  if(!o||typeof o!=='object')return;
+  for(const k of Object.keys(o)){
+   const v=o[k];
+   if(typeof v==='string'){
+    if(!v.includes('data:')||!embedded.test(v))continue;
+    const d=document.createElement('div');d.innerHTML=v;const out=editorBodyHtml(d);
+    if(out!==v){o[k]=out;changed=true}
+   }else walk(v);
+  }
+ };
+ walk(state.notes);walk(state.tasks);walk(state.calendar);
  return changed;
 }
+// When the planner is still too big to sync: what is taking the room, biggest first.
+function plannerSizeReport(){
+ const kb=x=>Math.max(1,Math.round(JSON.stringify(x??'').length/1024));
+ const items=[];
+ Object.values(state.notes.subjects||{}).forEach(s=>{
+  (s.notes||[]).forEach(n=>items.push({label:`Lesson “${n.title||'Untitled lesson'}” · ${s.name||'Subject'}`,kb:kb(n)}));
+  if(s.body)items.push({label:`Older notebook page · ${s.name||'Subject'}`,kb:kb(s.body)});
+ });
+ (state.notes.general||[]).forEach(n=>items.push({label:`Note “${n.title||'Untitled'}”`,kb:kb(n)}));
+ (state.notes.notes||[]).forEach(n=>items.push({label:`Older note “${n.title||'Untitled'}”`,kb:kb(n)}));
+ items.push({label:'All tasks',kb:kb(state.tasks)},{label:'All calendar events',kb:kb(state.calendar)});
+ return {total:kb({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}),items:items.sort((a,b)=>b.kb-a.kb).slice(0,5)};
+}
+function openSyncHelp(){
+ if(!syncProblem)return;
+ const ok='<button type="button" class="primary" data-close>OK</button>';
+ if(syncProblem!=='too-big')return openModal('Not syncing to the cloud','<p class="sync-help">Everything is saved on this device, but the last upload didn’t go through — usually a connection problem. It tries again with your next edit.</p>',ok);
+ const r=plannerSizeReport();
+ openModal('Not syncing to the cloud',`<p class="sync-help">Everything is saved on this device, but your planner is about <b>${r.total} KB</b> and the cloud takes up to about 1,000 KB, so it can’t upload yet. Pictures are stored separately and don’t count toward this.</p><p class="sync-help">Taking up the most room:</p><ul class="size-list">${r.items.map(i=>`<li><span>${esc(i.label)}</span><b>${i.kb} KB</b></li>`).join('')}</ul><p class="sync-help muted">Shortening the biggest one — for example a long block pasted from a website — lets syncing start again on your next edit.</p>`,ok);
+}
+document.addEventListener('click',e=>{if(e.target.closest('#saveIndicator.warn'))openSyncHelp()});
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest?.('#saveIndicator.warn')){e.preventDefault();openSyncHelp()}});
 // Replace the whole planner with `data` (or a blank planner when data is empty).
 function applyData(data){
   const theme=state.settings?.theme||readLocal(THEME_KEY)||'light';
@@ -401,8 +476,8 @@ async function loadCloudForUser(user){
     flushPendingImages();
     if(seq!==authSeq)return;
     if(owner)try{localStorage.removeItem(KEY)}catch{}
-    setSaveStatus(!uploaded?'Saved on this device':snap.exists&&!keptLocal?'Synced from cloud':'Saved to cloud');
-    if(keptLocal&&uploaded)toast('Restored your latest edits from this device.');
+    // A failed upload has already set the amber "Not synced" status; leave it showing.
+    if(uploaded)setSaveStatus(snap.exists&&!keptLocal?'Synced from cloud':'Saved to cloud');
     refreshUI();
   }catch(err){
     if(seq!==authSeq)return;
@@ -770,7 +845,7 @@ function renderNotebook(){
  const sorted=[...visible].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(lsort==='oldest'?1:-1)*((a.updated||0)-(b.updated||0)));
  const pinnedCount=sorted.filter(x=>x.pinned).length;
  const listHtml=sorted.length?sorted.map((x,i)=>`${i===0&&x.pinned?'<div class="list-divider">Pinned</div>':''}${pinnedCount>0&&i===pinnedCount&&!x.pinned?'<div class="list-divider">Other lessons</div>':''}<div class="note-item ${x.id===state.selectedNote?'active':''}" data-lesson="${x.id}" tabindex="0" role="button"><div class="note-item-row"><b>${esc(x.title||'Untitled lesson')}</b><button type="button" class="pin-btn ${x.pinned?'active':''}" data-pin-lesson="${x.id}" title="${x.pinned?'Unpin':'Pin note'}">${x.pinned?'★':'☆'}</button></div><small>${relTime(x.updated)}${(x.attachments||[]).length?' · 📎 '+x.attachments.length:''}</small></div>`).join(''):`<div class="empty">${q?'No lessons match your search.':'No lessons yet.'}</div>`;
- root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 12px;font-size:18px">${esc(s.name)}</h2><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span></div><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}<div class="lesson-foot"><button type="button" class="ghost" data-close-lesson>Close</button><button type="button" class="primary save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div>`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
+ root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 12px;font-size:18px">${esc(s.name)}</h2><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span></div><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions">${pdfButtonHtml('lesson')}<button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}<div class="lesson-foot"><button type="button" class="ghost" data-close-lesson>Close</button><button type="button" class="primary save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div>`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
  hydrateImages($('#lessonBody'));
 }
 function newLesson(){const s=state.settings.subjects.find(x=>x.id===state.selectedSubject);const nb=state.notes.subjects[s.id]||{id:s.id,name:s.name,notes:[]};nb.notes??=[];const n={id:uid('n'),title:'New lesson',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};nb.notes.unshift(n);state.notes.subjects[s.id]=nb;state.selectedNote=n.id;const root=$('#view-subjects');if(root)root.dataset.lquery='';save();renderNotebook();setTimeout(()=>$('#lessonTitle')?.focus(),0)}
@@ -862,7 +937,7 @@ function generalModal(n=null){
  if(isNew){state.notes.general??=[];n={id:uid('g'),title:'',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};state.notes.general.push(n);save()}
  currentGeneralNote=n;
  openModal(isNew?'New note':'Edit note',
-  `<div class="field"><div class="lesson-head"><input class="note-editor-title" id="gnTitle" value="${esc(n.title||'')}" placeholder="Note title" aria-label="Note title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions"><button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="gnPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin note':'Pin note'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" id="deleteGeneral" aria-label="Delete note" title="Delete note">${TRASH_ICON}</button></div></div>${editorToolbarHtml('gn')}<div class="note-editor" id="gnBody" contenteditable="true" data-placeholder="Write anything… reminders, checklists, ideas.">${n.body||''}</div>${attachmentsHtml(n,'gn')}</div>`,
+  `<div class="field"><div class="lesson-head"><input class="note-editor-title" id="gnTitle" value="${esc(n.title||'')}" placeholder="Note title" aria-label="Note title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions">${pdfButtonHtml('gn')}<button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="gnPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin note':'Pin note'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" id="deleteGeneral" aria-label="Delete note" title="Delete note">${TRASH_ICON}</button></div></div>${editorToolbarHtml('gn')}<div class="note-editor" id="gnBody" contenteditable="true" data-placeholder="Write anything… reminders, checklists, ideas.">${n.body||''}</div>${attachmentsHtml(n,'gn')}</div>`,
   `<button class="ghost" data-close>Close</button><button class="primary save-note-btn" id="saveGeneral" title="Save (Ctrl+S)">Save</button>`
  );
  $('#saveGeneral').onclick=async e=>{
@@ -921,7 +996,7 @@ function wire(){ $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>setView(b.d
 function quickAdd(){openModal('What do you want to add?','<div class="grid" style="grid-template-columns:1fr 1fr"><button class="card" style="padding:25px;border:1px solid var(--line)" id="qaTask"><b>✓ Task</b><div style="color:var(--muted);font-size:11px;margin-top:5px">Add a deadline or school requirement</div></button><button class="card" style="padding:25px;border:1px solid var(--line)" id="qaEvent"><b>▦ Event</b><div style="color:var(--muted);font-size:11px;margin-top:5px">Add a class, exam or plan</div></button></div>');$('#qaTask').onclick=()=>{$('#modalRoot').innerHTML='';addTaskRow()};$('#qaEvent').onclick=()=>eventModal()}
 function quickSearch(){openModal('Search your planner','<input class="input" id="globalQ" style="width:100%" placeholder="Search tasks, events and notes…"><div id="globalResults" style="margin-top:12px"></div>');const q=$('#globalQ');q.focus();q.oninput=()=>{const x=q.value.toLowerCase().trim();const r=[];state.tasks.tasks.forEach(t=>{if((t.task+' '+taskSubject(t.subject)+' '+(t.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(t.task)}</b><span>Task · ${esc(taskSubject(t.subject))}</span></div></div>`)});state.calendar.events.forEach(e=>{if((e.title+' '+(e.notes||'')).toLowerCase().includes(x))r.push(`<div class="list-row"><div class="row-main"><b>${esc(e.title)}</b><span>Event · ${fmtDate(e.date)}</span></div></div>`)});$('#globalResults').innerHTML=r.slice(0,12).join('')||'<div class="empty">No matches.</div>'}}
 
-document.addEventListener('mousedown',e=>{if(e.target.closest('.editor-toolbar button[data-cmd]'))e.preventDefault()});
+document.addEventListener('mousedown',e=>{if(e.target.closest('.editor-toolbar button[data-cmd],.editor-toolbar [data-hl-toggle]'))e.preventDefault()});
 // Images pasted or dropped into a lesson or note show as small thumbnails; clicking one opens it full size
 // on top of everything (including the note popup). Escape, × or a click outside the image closes it.
 function openImageViewer(src,alt,returnFocus){
@@ -980,6 +1055,11 @@ const pinGeneral=e.target.closest('[data-pin-general]');
 if(pinGeneral){const n=(state.notes.general||[]).find(x=>x.id===pinGeneral.dataset.pinGeneral);if(n){n.pinned=!n.pinned;save();renderNotes()}return}
 const lessonPinBtn=e.target.closest('#lessonPin');
 if(lessonPinBtn){const s=state.notes.subjects[state.selectedSubject];const n=s&&s.notes&&s.notes.find(x=>x.id===state.selectedNote);if(n){n.pinned=!n.pinned;save();renderNotebook()}return}
+const hlToggle=e.target.closest('[data-hl-toggle]');
+if(hlToggle){toggleHighlightMenu(hlToggle,hlToggle.getAttribute('aria-expanded')!=='true');return}
+if(!e.target.closest('.tb-hl'))closeHighlightMenus();
+const pdfBtn=e.target.closest('[data-note-pdf]');
+if(pdfBtn){saveNoteAsPdf(pdfBtn.dataset.notePdf);return}
 const tbBtn=e.target.closest('.editor-toolbar button[data-cmd]');
 if(tbBtn){
  const toolbar=tbBtn.closest('.editor-toolbar');
@@ -989,6 +1069,13 @@ if(tbBtn){
   const cmd=tbBtn.dataset.cmd;
   if(cmd==='createLink'){const url=prompt('Link URL (include https://)','https://');if(url)document.execCommand('createLink',false,url)}
   else if(cmd==='formatBlock')document.execCommand('formatBlock',false,'<'+tbBtn.dataset.val+'>');
+  else if(cmd==='hiliteColor'){
+   // CSS mode makes a <span style="background-color"> in every browser (Firefox needs it for hiliteColor).
+   document.execCommand('styleWithCSS',false,true);
+   document.execCommand('hiliteColor',false,tbBtn.dataset.val);
+   document.execCommand('styleWithCSS',false,false);
+   closeHighlightMenus();
+  }
   else document.execCommand(cmd,false,null);
   editor.dispatchEvent(new Event('input',{bubbles:true}));
  }
