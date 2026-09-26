@@ -399,7 +399,10 @@ body.dark .sheet-scroll-wrap::after{background:linear-gradient(to left,rgba(0,0,
    (same left padding on every screen size) and moves down instead of overlapping when the text is longer. */
 .subject-card{display:flex;flex-direction:column}
 .subject-card .subject-icon{flex:none;align-self:flex-start}
-.subject-card .count{position:static;margin-top:auto;padding-top:12px}
+/* Open tasks: a badge in the bottom-right corner, amber while any are open, apart from the lesson info */
+.subject-card .count{position:static;align-self:flex-end;margin-top:auto;font-size:11px}
+.subject-card .count.warn{color:var(--warn)}
+.subject-card p{margin-bottom:12px}
 /* Calendar: the month and year (or week range) is the heading of the page, so it reads large */
 .calendar-title{margin-left:6px;font-size:26px;line-height:1.15;letter-spacing:-.02em}
 .calendar-title b{font-weight:800}

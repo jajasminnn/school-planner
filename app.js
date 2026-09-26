@@ -649,7 +649,7 @@ function renderDashboard(){const root=$('#view-dashboard'), now=new Date(), open
 // Each subject's professor (optional): a small line under the subject name, set in the notebook or Settings.
 const profLineHtml=s=>s.prof?`<div class="subject-prof" title="Professor">👤 ${esc(s.prof)}</div>`:'';
 document.addEventListener('input',e=>{if(e.target.id!=='nbProf')return;const s=state.settings.subjects.find(x=>x.id===e.target.dataset.profFor);if(s){s.prof=e.target.value.trim();save()}});
-function subjectCard(s,i,info){const count=state.tasks.tasks.filter(t=>t.subject===s.id&&t.status!=='Done').length;return `<div class="subject-card" data-subject="${s.id}"${info?` role="button" tabindex="0" aria-label="Open ${esc(s.name||'Unnamed subject')} notebook"`:''} style="--subject-color:${SUBJECT_COLORS[i%8]}"><div class="subject-icon">${i+1}</div><h3>${esc(s.name||'Unnamed subject')}</h3>${profLineHtml(s)}<p>${info?info.text:'Open your lesson notebook'}</p><span class="count">${count} open task${count===1?'':'s'}</span></div>`}
+function subjectCard(s,i,info){const count=state.tasks.tasks.filter(t=>t.subject===s.id&&t.status!=='Done').length;return `<div class="subject-card" data-subject="${s.id}"${info?` role="button" tabindex="0" aria-label="Open ${esc(s.name||'Unnamed subject')} notebook"`:''} style="--subject-color:${SUBJECT_COLORS[i%8]}"><div class="subject-icon">${i+1}</div><h3>${esc(s.name||'Unnamed subject')}</h3>${profLineHtml(s)}<p>${info?info.text:'Open your lesson notebook'}</p><span class="count pill ${count?'warn':''}">${count} open task${count===1?'':'s'}</span></div>`}
 function eventOccursOn(e, key){
  const r=e.repeat||'none';
  if(!e.date || key<e.date) return false;
