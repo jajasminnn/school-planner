@@ -3,7 +3,7 @@
 const KEY='school-planner-v2';
 const OLD={calendar:'school-planner-calendar',tasks:'school-planner-tasks',notes:'school-planner-notes'};
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const state={view:'dashboard',calendar:{events:[],showTasks:true},tasks:{tasks:[],meta:{subjects:[]}},notes:{notes:[],subjects:{}},settings:{theme:'light',subjects:[],accent:'#367e83'},calCursor:new Date(),calMode:'month',selectedSubject:null,selectedNote:null};
+const state={view:'dashboard',calendar:{events:[],showTasks:true},tasks:{tasks:[],meta:{subjects:[]}},notes:{notes:[],subjects:{}},study:{decks:[]},settings:{theme:'light',subjects:[],accent:'#367e83'},calCursor:new Date(),calMode:'month',selectedSubject:null,selectedNote:null};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const iso=d=>{d=new Date(d);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -281,7 +281,7 @@ const GUEST_KEY=KEY+':guest';
 const isLegacyOwner=user=>(user?.email||'').toLowerCase()===LEGACY_OWNER_EMAIL;
 const localKey=()=>cloudUser?KEY+':'+cloudUser.uid:GUEST_KEY;
 const cloudRef=()=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc('main'):null;
-const plannerPayload=()=>({owner:cloudUser.uid,calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,savedAt:state.savedAt||0,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+const plannerPayload=()=>({owner:cloudUser.uid,calendar:state.calendar,tasks:state.tasks,notes:state.notes,study:state.study,settings:state.settings,savedAt:state.savedAt||0,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
 // Set on every edit and cleared once the cloud has it. If the page is refreshed or closed before the upload
 // finishes, the next load sees this and keeps this device's newer copy instead of the older cloud one.
 const unsyncedKey=()=>localKey()+':unsynced';
@@ -302,7 +302,7 @@ function setSaveStatus(text,problem=null){
 }
 function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
 function writeLocal(){
-  try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings,savedAt:state.savedAt||0}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}
+  try{localStorage.setItem(localKey(),JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,study:state.study,settings:state.settings,savedAt:state.savedAt||0}));localStorage.setItem(THEME_KEY,state.settings.theme||'light')}
   catch{if(!writeLocal.warned){writeLocal.warned=true;toast('This browser’s storage is full, so recent edits may not be kept here. Remove large pictures from your notes.')}}
 }
 function save(){
@@ -459,7 +459,7 @@ function plannerSizeReport(){
  (state.notes.general||[]).forEach(n=>items.push({label:`Note “${n.title||'Untitled'}”`,kb:kb(n)}));
  (state.notes.notes||[]).forEach(n=>items.push({label:`Older note “${n.title||'Untitled'}”`,kb:kb(n)}));
  items.push({label:'All tasks',kb:kb(state.tasks)},{label:'All calendar events',kb:kb(state.calendar)});
- return {total:kb({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings}),items:items.sort((a,b)=>b.kb-a.kb).slice(0,5)};
+ return {total:kb({calendar:state.calendar,tasks:state.tasks,notes:state.notes,study:state.study,settings:state.settings}),items:items.sort((a,b)=>b.kb-a.kb).slice(0,5)};
 }
 function openSyncHelp(){
  if(!syncProblem)return;
@@ -476,6 +476,7 @@ function applyData(data){
   state.calendar={events:[],showTasks:true};
   state.tasks={tasks:[],meta:{subjects:[]}};
   state.notes={notes:[],subjects:{}};
+  state.study={decks:[]};
   state.settings={theme,subjects:[],accent:'#367e83'};
   state.selectedSubject=null;state.selectedNote=null;
   state.savedAt=data?.savedAt||0;
@@ -484,7 +485,9 @@ function applyData(data){
     if(data.tasks)state.tasks=data.tasks;
     if(data.notes)state.notes=data.notes;
     if(data.settings)state.settings=data.settings;
+    if(data.study)state.study=data.study;
   }
+  if(!Array.isArray(state.study?.decks))state.study={decks:[]};
   state.calendar.events??=[];state.tasks.tasks??=[];state.notes.subjects??={};
   if(!Array.isArray(state.settings.subjects))state.settings.subjects=[];
   if(!state.settings.subjects.length)state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}));
@@ -556,7 +559,7 @@ async function loadCloudForUser(user){
 }
 /* ---- Auth gate: the planner is only rendered for a signed-in user ---- */
 const SESSION_HINT='jasync-session';
-const VIEWS=['dashboard','calendar','tasks','subjects','notes','settings'];
+const VIEWS=['dashboard','calendar','tasks','subjects','notes','study','settings'];
 let appOpen=false, leaving=false;
 function openApp(){
   if(appOpen)return;
@@ -647,8 +650,8 @@ function migrate(){let old={}; try{for(const [k,v] of Object.entries(OLD)){const
 function syncSubjects(){state.tasks.meta=state.tasks.meta||{};state.tasks.meta.subjects=state.settings.subjects.map(s=>({id:s.id,name:s.name}));state.notes.subjects=state.notes.subjects||{};state.settings.subjects.forEach(s=>{if(!state.notes.subjects[s.id])state.notes.subjects[s.id]={id:s.id,name:s.name,body:'',notes:[]};state.notes.subjects[s.id].name=s.name});}
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function openModal(title,body,actions=''){const root=$('#modalRoot');root.innerHTML=`<div class="modal-backdrop" id="backdrop"><div class="modal"><div class="modal-head"><h2>${title}</h2><button class="icon-btn" data-close>×</button></div><div class="modal-body">${body}</div>${actions?`<div class="modal-foot">${actions}</div>`:''}</div></div>`;$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))root.innerHTML=''})}
-function setView(v){state.view=v; $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v)); $$('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));const meta={dashboard:['Overview','Dashboard'],calendar:['Plan','Calendar'],tasks:['Stay on top','Tasks'],subjects:['Study space','My Subjects'],notes:['Write & remember','Notes'],settings:['Personalize','Settings']}[v];$('#eyebrow').textContent=meta[0];$('#pageTitle').textContent=meta[1]; if(innerWidth<761)closeMobile(); render();}
-function render(){renderBadge();({dashboard:renderDashboard,calendar:renderCalendar,tasks:renderTasks,subjects:renderSubjects,notes:renderNotes,settings:renderSettings}[state.view])()}
+function setView(v){state.view=v; $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v)); $$('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));const meta={dashboard:['Overview','Dashboard'],calendar:['Plan','Calendar'],tasks:['Stay on top','Tasks'],subjects:['Study space','My Subjects'],notes:['Write & remember','Notes'],study:['Practice','Flashcards & Quiz'],settings:['Personalize','Settings']}[v];$('#eyebrow').textContent=meta[0];$('#pageTitle').textContent=meta[1]; if(innerWidth<761)closeMobile(); render();}
+function render(){renderBadge();({dashboard:renderDashboard,calendar:renderCalendar,tasks:renderTasks,subjects:renderSubjects,notes:renderNotes,study:renderStudy,settings:renderSettings}[state.view])()}
 function renderBadge(){const n=state.tasks.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today()).length;const b=$('#overdueBadge');b.hidden=!n;b.textContent=n}
 function taskSubject(id){return state.settings.subjects.find(s=>s.id===id)?.name||'No subject'}
 function taskDays(t){if(t.status==='Done')return['Completed','success'];if(!t.due)return['No due date',''];let d=Math.round((parse(t.due)-parse(today()))/86400000);if(d<0)return[`Overdue ${-d}d`,'danger'];if(d===0){if(t.time){const due=new Date(t.due+'T'+t.time);if(due<new Date())return['Past deadline','danger'];return[`Due today · ${fmtTime(t.time)}`,'warn']}return['Due today','warn']}if(d<=3)return[`Due in ${d}d`,'warn'];return[`Due in ${d}d`,'']}
@@ -960,7 +963,7 @@ function renderNotebook(){
  const sorted=[...visible].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(lsort==='oldest'?1:-1)*((a.updated||0)-(b.updated||0)));
  const pinnedCount=sorted.filter(x=>x.pinned).length;
  const listHtml=sorted.length?sorted.map((x,i)=>`${i===0&&x.pinned?'<div class="list-divider">Pinned</div>':''}${pinnedCount>0&&i===pinnedCount&&!x.pinned?'<div class="list-divider">Other lessons</div>':''}<div class="note-item ${x.id===state.selectedNote?'active':''}" data-lesson="${x.id}" tabindex="0" role="button"><div class="note-item-row"><b>${esc(x.title||'Untitled lesson')}</b><button type="button" class="pin-btn ${x.pinned?'active':''}" data-pin-lesson="${x.id}" title="${x.pinned?'Unpin':'Pin note'}">${x.pinned?'★':'☆'}</button></div><small>${relTime(x.updated)}${(x.attachments||[]).length?' · 📎 '+x.attachments.length:''}</small></div>`).join(''):`<div class="empty">${q?'No lessons match your search.':'No lessons yet.'}</div>`;
- root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook" style="--subject-color:${subjectColor(s.id)}"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 4px;font-size:18px"><span class="nb-emoji" aria-hidden="true">${subjectIcon(s)}</span>${esc(s.name)}</h2><label class="nb-prof"><span aria-hidden="true">👤</span><input id="nbProf" data-prof-for="${s.id}" value="${esc(s.prof||'')}" placeholder="Add professor's name" aria-label="Professor for ${esc(s.name)}" autocomplete="off"></label><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span></div><div class="note-sheet"><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions">${pdfButtonHtml('lesson')}<button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}</div><div class="lesson-foot"><button type="button" class="ghost" data-close-lesson>Close</button><button type="button" class="primary save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div>`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
+ root.innerHTML=`<div class="toolbar"><button class="ghost" data-back-subjects>← All subjects</button><span class="grow"></span><button class="primary" data-new-lesson>+ New lesson</button></div><div class="card notebook" style="--subject-color:${subjectColor(s.id)}"><aside class="notebook-side"><div class="eyebrow">Notebook</div><h2 style="margin:4px 0 4px;font-size:18px"><span class="nb-emoji" aria-hidden="true">${subjectIcon(s)}</span>${esc(s.name)}</h2><label class="nb-prof"><span aria-hidden="true">👤</span><input id="nbProf" data-prof-for="${s.id}" value="${esc(s.prof||'')}" placeholder="Add professor's name" aria-label="Professor for ${esc(s.name)}" autocomplete="off"></label><input class="input" id="lessonSearch" value="${esc(q)}" placeholder="Search this notebook…"><select class="select" id="lessonSort" style="margin-top:8px;width:100%"><option value="newest" ${lsort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${lsort==='oldest'?'selected':''}>Oldest first</option></select><div id="lessonList">${listHtml}</div></aside><div class="notebook-main">${n?`<div class="notebook-top"><span class="pill">Lesson note</span><span class="grow"></span></div><div class="note-sheet"><div class="lesson-head"><input class="note-editor-title" id="lessonTitle" value="${esc(n.title||'')}" placeholder="Lesson title" aria-label="Lesson title"><div class="lesson-meta"><span class="note-edited">${n.updated?'Last edited '+relTime(n.updated):''}</span><span class="note-save-status" role="status"></span></div><div class="lesson-actions"><button type="button" class="lesson-action lesson-cards" data-make-cards title="${state.study.decks.some(d=>d.lessonId===n.id)?'Open this lesson’s flashcards (adds cards for anything new)':'Make flashcards and a quiz from this lesson'}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="12" rx="2"/><path d="M7 7V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg><span>Flashcards</span></button>${pdfButtonHtml('lesson')}<button type="button" class="lesson-action lesson-pin ${n.pinned?'active':''}" id="lessonPin" aria-pressed="${n.pinned?'true':'false'}" title="${n.pinned?'Unpin lesson':'Pin lesson'}">${pinLabelHtml(n.pinned)}</button><button type="button" class="lesson-action lesson-delete" data-delete-lesson aria-label="Delete lesson" title="Delete lesson">${TRASH_ICON}</button></div></div>${editorToolbarHtml('lesson')}<div class="note-editor" id="lessonBody" contenteditable="true" data-placeholder="Write your lesson discussion here… key concepts, examples, questions, formulas and reminders.">${n.body||''}</div>${attachmentsHtml(n,'lesson')}</div><div class="lesson-foot"><button type="button" class="ghost" data-close-lesson>Close</button><button type="button" class="primary save-note-btn" data-save-lesson title="Save (Ctrl+S)">Save</button></div>`:`<div class="empty" style="margin-top:120px">${allNotes.length?'Choose a lesson from the list to read or edit it.':'Click <b>+ New lesson</b> to start taking notes.'}</div>`}</div></div>`;
  hydrateImages($('#lessonBody'));
 }
 function newLesson(){const s=state.settings.subjects.find(x=>x.id===state.selectedSubject);const nb=state.notes.subjects[s.id]||{id:s.id,name:s.name,notes:[]};nb.notes??=[];const n={id:uid('n'),title:'New lesson',body:'',pinned:false,attachments:[],created:Date.now(),updated:Date.now()};nb.notes.unshift(n);state.notes.subjects[s.id]=nb;state.selectedNote=n.id;const root=$('#view-subjects');if(root)root.dataset.lquery='';save();renderNotebook();setTimeout(()=>$('#lessonTitle')?.focus(),0)}
@@ -1085,8 +1088,270 @@ function generalModal(n=null){
  $('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))finalizeGeneralNote()});
  setTimeout(()=>$('#gnTitle')?.focus(),0);
 }
+/* ---- Study: flashcard decks made from lessons, flip-card practice and multiple-choice quizzes ----
+   state.study.decks: [{id,subjectId,lessonId,title,created,updated,cards:[{id,q,a,kind,box,right,wrong,seen}]}]
+   kind: 'def' (term → meaning), 'cloze' (fill in the blank), 'list' (points under a heading), 'manual'.
+   Progress: "Got it" or a right quiz answer moves a card up a box (0–5); "Again" or a wrong answer sends it back
+   to 0. Practice and quizzes start with the lowest boxes, so missed cards keep coming back until they stick. */
+const MASTERED_BOX=3;
+const CARD_KIND={def:'Define',cloze:'Fill in the blank',list:'List',manual:'Question'};
+let studySession=null;// {deckId,mode:'cards'|'quiz',...} while practising
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const cleanText=t=>String(t||'').replace(/\s+/g,' ').trim();
+const deckById=id=>state.study.decks.find(d=>d.id===id);
+const deckLesson=d=>state.notes.subjects[d.subjectId]?.notes?.find(n=>n.id===d.lessonId)||null;
+const deckStats=d=>{const c=d.cards||[];return {total:c.length,mastered:c.filter(x=>(x.box||0)>=MASTERED_BOX).length,review:c.filter(x=>(x.seen||0)>0&&!(x.box||0)).length}};
+// Weakest cards first; cards in the same box come in a random order.
+const weakFirst=cards=>shuffle(cards).sort((a,b)=>(a.box||0)-(b.box||0));
+
+// Reads a lesson and turns it into cards: bold terms and "Term – definition" / "Term: definition" lines,
+// sentences with a bold word (fill in the blank), lists under a heading or a line ending in ":", and
+// two-column tables. Handles notes typed straight into the editor (bare text, <div> lines, <br> breaks).
+// Quote boxes usually hold reminders, so only their bold words (fill in the blank) are used.
+function cardsFromLesson(html,lessonTitle=''){
+ const root=document.createElement('div');root.innerHTML=html||'';
+ root.querySelectorAll('img,script,style,.attach-panel').forEach(x=>x.remove());
+ const BLOCK=new Set(['P','DIV','LI','UL','OL','TABLE','BLOCKQUOTE','H1','H2','H3','H4','H5','H6','PRE']);
+ // Wrap loose text at the top level (the editor's first line) so it is read like any other line.
+ let run=null;[...root.childNodes].forEach(n=>{if(n.nodeType===1&&BLOCK.has(n.tagName)){run=null;return}if(!run){run=document.createElement('p');root.insertBefore(run,n)}run.appendChild(n)});
+ const out=[],seen=new Set();
+ const add=(q,a,kind)=>{q=cleanText(q);a=kind==='list'?String(a).trim():cleanText(a);if(q.length<2||a.length<2||q.length>300||a.length>700)return;const k=q.toLowerCase();if(seen.has(k))return;seen.add(k);out.push({q,a,kind})};
+ const DEF=/^(.{2,80}?)\s*(?::|：|\s[–—-]\s|\s=\s)\s*(.{3,})$/;
+ const LEAD=/^\s*(?:[:：=–—-]|is\b|are\b|refers to\b|means\b)?\s*/i;
+ const line=(html,quote)=>{
+  const d=document.createElement('div');d.innerHTML=html;d.querySelectorAll('ul,ol').forEach(x=>x.remove());
+  const text=cleanText(d.textContent);if(text.length<4)return;
+  const bolds=[...d.querySelectorAll('b,strong')].map(b=>cleanText(b.textContent)).filter(t=>t.length>=2&&t.length<=60);
+  const first=bolds[0];
+  if(!quote&&first&&text.startsWith(first)){const rest=text.slice(first.length).replace(LEAD,'');if(rest.length>=3&&!/[?？]$/.test(rest)){add(first.replace(/[:：]$/,''),rest,'def');return}}
+  const m=DEF.exec(text);
+  if(!quote&&m&&m[1].split(' ').length<=8&&!/[.?!]$/.test(m[1])&&!/[?？]$/.test(m[2])){add(m[1],m[2],'def');return}
+  if(text.length>=25)bolds.forEach(b=>{const i=text.indexOf(b);if(i>-1)add(text.slice(0,i)+'_____'+text.slice(i+b.length),b,'cloze')});
+ };
+ // Lines: every block with no blocks inside it, split at <br>.
+ [...root.querySelectorAll('p,div,li,blockquote')].filter(el=>!el.closest('table')&&!el.querySelector('p,div,blockquote,table')).forEach(el=>{
+  const c=el.cloneNode(true);c.querySelectorAll('ul,ol').forEach(x=>x.remove());
+  const quote=!!el.closest('blockquote');c.innerHTML.split(/<br\s*\/?>/i).forEach(h=>line(h,quote));
+ });
+ // Lists under a heading, a line ending in ":", or a parent list item.
+ root.querySelectorAll('ul,ol').forEach(list=>{
+  const items=[...list.children].filter(li=>li.tagName==='LI').map(li=>{const c=li.cloneNode(true);c.querySelectorAll('ul,ol').forEach(x=>x.remove());return cleanText(c.textContent)}).filter(Boolean);
+  if(items.length<2)return;
+  let head='',prev=list.previousElementSibling;
+  while(prev&&!cleanText(prev.textContent))prev=prev.previousElementSibling;
+  if(list.parentElement?.tagName==='LI'){const c=list.parentElement.cloneNode(true);c.querySelectorAll('ul,ol').forEach(x=>x.remove());head=cleanText(c.textContent)}
+  else if(prev&&/^H[1-6]$/.test(prev.tagName))head=cleanText(prev.textContent);
+  else if(prev){const d=document.createElement('div');d.innerHTML=prev.innerHTML.split(/<br\s*\/?>/i).filter(x=>cleanText(x.replace(/<[^>]*>/g,''))).pop()||'';const t=cleanText(d.textContent);if(/[:：]$/.test(t))head=t}
+  head=head.replace(/[:：]\s*$/,'');
+  // A short heading like "Steps" gets the lesson's name so the card makes sense on its own.
+  if(head&&head.split(' ').length<=2&&cleanText(lessonTitle))head+=` (${cleanText(lessonTitle)})`;
+  if(head)add(head,items.map((t,i)=>(list.tagName==='OL'?`${i+1}. `:'• ')+t).join('\n'),'list');
+ });
+ // Two-column tables: first column → second column.
+ root.querySelectorAll('tr').forEach(tr=>{const cells=[...tr.children];if(cells.length===2&&!cells.every(c=>c.tagName==='TH'))add(cells[0].textContent,cells[1].textContent,'def')});
+ return out.slice(0,80);
+}
+const newCard=(q,a,kind='manual')=>({id:uid('c'),q,a,kind,box:0,right:0,wrong:0,seen:0});
+// Creates the lesson's deck, or adds only the cards it doesn't have yet (edits and progress are kept).
+function syncDeckFromLesson(subjectId,lesson,html){
+ let deck=state.study.decks.find(d=>d.lessonId===lesson.id);
+ const made=cardsFromLesson(html??lesson.body,lesson.title);
+ if(!deck){deck={id:uid('d'),subjectId,lessonId:lesson.id,title:cleanText(lesson.title)||'Untitled lesson',created:Date.now(),updated:Date.now(),cards:[]};state.study.decks.unshift(deck)}
+ const have=new Set(deck.cards.map(c=>cleanText(c.q).toLowerCase()));
+ const fresh=made.filter(c=>!have.has(c.q.toLowerCase())).map(c=>newCard(c.q,c.a,c.kind));
+ deck.cards.push(...fresh);deck.updated=Date.now();
+ return {deck,added:fresh.length};
+}
+function openDeck(id){studySession=null;$('#view-study').dataset.deck=id||'';if(state.view==='study')renderStudy();else setView('study')}
+const noCardsTip='Tip: make key terms <b>bold</b>, or write lines like “Term – meaning”, then update the deck.';
+
+// Quiz: up to 10 questions, weakest cards first. Wrong options come from the deck's other answers of the
+// same sort (meanings with meanings, terms with terms, lists with lists).
+function buildQuiz(deck){
+ const cards=deck.cards.filter(c=>cleanText(c.q)&&cleanText(c.a));
+ const meanings=cards.filter(c=>c.kind==='def'||c.kind==='manual').map(c=>c.a);
+ const terms=[...cards.filter(c=>c.kind==='def').map(c=>c.q),...cards.filter(c=>c.kind==='cloze').map(c=>c.a)];
+ const lists=cards.filter(c=>c.kind==='list').map(c=>c.a);
+ const pickWrong=(pool,right)=>shuffle([...new Set(pool.map(cleanText))].filter(x=>x&&x.toLowerCase()!==cleanText(right).toLowerCase())).slice(0,3);
+ const qs=[];
+ for(const c of weakFirst(cards)){
+  if(qs.length>=10)break;
+  let q=null;
+  if(c.kind==='cloze')q={label:'Fill in the blank',prompt:c.q,right:c.a,wrong:pickWrong(terms,c.a)};
+  else if(c.kind==='list')q={label:'Which list is it?',prompt:c.q,right:c.a,wrong:pickWrong(lists,c.a)};
+  else if(c.kind==='def'&&Math.random()<.4&&terms.length>2)q={label:'Which term matches?',prompt:c.a,right:c.q,wrong:pickWrong(terms,c.q)};
+  else q={label:c.kind==='def'?'What does it mean?':'Question',prompt:c.q,right:c.a,wrong:pickWrong(meanings,c.a)};
+  if(!q.wrong.length)continue;
+  qs.push({cardId:c.id,label:q.label,prompt:q.prompt,right:q.right,options:shuffle([q.right,...q.wrong])});
+ }
+ return qs;
+}
+function startCards(deckId,onlyIds){
+ const d=deckById(deckId);if(!d)return;
+ const pool=onlyIds?d.cards.filter(c=>onlyIds.includes(c.id)):d.cards;
+ if(!pool.length){toast('Add some cards to this deck first');return}
+ studySession={deckId,mode:'cards',queue:weakFirst(pool).map(c=>c.id),pos:0,flipped:false,got:0,missed:[],tries:{}};
+ openStudySession();
+}
+function startQuiz(deckId){
+ const d=deckById(deckId);if(!d)return;
+ const qs=buildQuiz(d);
+ if(!qs.length){toast('A quiz needs at least 2 cards of the same kind');return}
+ studySession={deckId,mode:'quiz',qs,pos:0,picked:null,score:0,missed:[]};
+ openStudySession();
+}
+function openStudySession(){if(state.view==='study')renderStudy();else setView('study');setTimeout(()=>$('#view-study .study-focus')?.focus(),0)}
+const flipActionsHtml=flipped=>flipped?`<button type="button" class="again-btn" data-card-again><b>Again</b><small>1 · ←</small></button><button type="button" class="got-btn" data-card-got><b>Got it</b><small>2 · →</small></button>`:`<button type="button" class="primary" data-flip>Show answer <small>Space</small></button>`;
+// Turns the card over in place (not a re-render) so the flip animation plays.
+function flipCard(){
+ const s=studySession;if(!s||s.mode!=='cards')return;
+ s.flipped=!s.flipped;
+ const fc=$('#view-study .flipcard'),acts=$('#view-study .flip-actions');
+ if(!fc||!acts)return renderStudy();
+ fc.classList.toggle('flipped',s.flipped);fc.setAttribute('aria-pressed',String(s.flipped));
+ fc.setAttribute('aria-label',s.flipped?'Answer shown. Press Space to see the front.':'Press Space to show the answer.');
+ acts.innerHTML=flipActionsHtml(s.flipped);fc.focus();
+}
+function answerCard(got){
+ const s=studySession,d=deckById(s?.deckId);if(!s||s.mode!=='cards'||!d)return;
+ const c=d.cards.find(x=>x.id===s.queue[s.pos]);
+ if(c){
+  c.seen=(c.seen||0)+1;
+  const first=!s.tries[c.id];s.tries[c.id]=(s.tries[c.id]||0)+1;
+  if(got){c.box=Math.min((c.box||0)+1,5);c.right=(c.right||0)+1;if(first)s.got++}
+  else{c.box=0;c.wrong=(c.wrong||0)+1;if(!s.missed.includes(c.id))s.missed.push(c.id);if(s.tries[c.id]<3)s.queue.splice(Math.min(s.pos+4,s.queue.length),0,c.id)}
+  d.updated=Date.now();save();
+ }
+ s.pos++;s.flipped=false;renderStudy();$('#view-study .study-focus')?.focus();
+}
+function answerQuiz(i){
+ const s=studySession,d=deckById(s?.deckId);if(!s||s.mode!=='quiz'||s.picked!=null||!d)return;
+ const q=s.qs[s.pos],opt=q?.options[i];if(opt==null)return;
+ s.picked=i;
+ const ok=opt===q.right,c=d.cards.find(x=>x.id===q.cardId);
+ if(ok)s.score++;else s.missed.push(s.pos);
+ if(c){c.seen=(c.seen||0)+1;if(ok){c.box=Math.min((c.box||0)+1,5);c.right=(c.right||0)+1}else{c.box=0;c.wrong=(c.wrong||0)+1}d.updated=Date.now();save()}
+ renderStudy();$('#view-study [data-quiz-next]')?.focus();
+}
+function nextQuiz(){const s=studySession;if(!s||s.mode!=='quiz'||s.picked==null)return;s.pos++;s.picked=null;renderStudy();$('#view-study .study-focus')?.focus()}
+
+function renderStudy(){
+ const root=$('#view-study');
+ if(studySession&&deckById(studySession.deckId))return renderStudySession(root);
+ studySession=null;
+ const deck=deckById(root.dataset.deck||'');
+ if(deck)return renderDeck(root,deck);
+ root.dataset.deck='';
+ const subj=root.dataset.subj||'';
+ const decks=state.study.decks.filter(d=>!subj||d.subjectId===subj).sort((a,b)=>(b.updated||0)-(a.updated||0));
+ const total=state.study.decks.length;
+ const subjOpts=`<option value="">All subjects</option>${state.settings.subjects.map(s=>`<option value="${s.id}" ${subj===s.id?'selected':''}>${esc(subjectIcon(s)+' '+(s.name||'Unnamed subject'))}</option>`).join('')}`;
+ let body;
+ if(!total)body=`<div class="notes-empty study-empty"><div class="notes-empty-icon" aria-hidden="true">🎴</div><h3>No flashcards yet</h3><p>Open a lesson in <b>My Subjects</b> and click <b>Flashcards</b> to turn your notes into cards and a quiz.<br>Or start an empty deck and write your own cards.</p><div class="study-empty-actions"><button type="button" class="primary" data-go-subjects>Go to My Subjects</button><button type="button" class="ghost" data-new-deck>+ New deck</button></div></div>`;
+ else if(!decks.length)body=`<div class="notes-empty"><div class="notes-empty-icon" aria-hidden="true">🔎</div><h3>No decks for this subject</h3><p>Pick another subject, or make flashcards from one of its lessons.</p></div>`;
+ else body=`<div class="deck-grid notes-view">${decks.map(d=>{
+  const s=state.settings.subjects.find(x=>x.id===d.subjectId),st=deckStats(d),pct=st.total?Math.round(st.mastered/st.total*100):0;
+  return `<article class="deck-card" style="--subject-color:${subjectColor(d.subjectId)}"><button type="button" class="deck-open" data-open-deck="${d.id}" aria-label="Open deck ${esc(d.title)}"><span class="deck-subject"><span class="deck-emoji" aria-hidden="true">${s?subjectIcon(s):'🎴'}</span>${esc(s?.name||'No subject')}</span><b class="deck-title">${esc(d.title||'Untitled deck')}</b><span class="deck-meta">${st.total} card${st.total===1?'':'s'} · ${st.mastered} mastered${st.review?` · <em>${st.review} to review</em>`:''}</span><span class="deck-bar" role="img" aria-label="${pct}% mastered"><i style="width:${pct}%"></i></span></button><div class="deck-actions"><button type="button" class="primary small" data-study-cards="${d.id}" ${st.total?'':'disabled'}>Practice</button><button type="button" class="ghost small" data-study-quiz="${d.id}" ${st.total>1?'':'disabled'}>Quiz</button></div></article>`}).join('')}</div>`;
+ root.innerHTML=`<div class="notes-top"><div class="notes-top-title"><h2>Your decks</h2><span class="pill">${total} deck${total===1?'':'s'}</span></div><div class="notes-controls">${total?`<select class="select" id="studySubject" aria-label="Show decks for">${subjOpts}</select>`:''}<button type="button" class="primary" data-new-deck>+ New deck</button></div></div>${body}`;
+}
+function renderDeck(root,d){
+ const s=state.settings.subjects.find(x=>x.id===d.subjectId),st=deckStats(d),pct=st.total?Math.round(st.mastered/st.total*100):0,lesson=deckLesson(d);
+ const dots=c=>`<span class="fc-dots" title="${(c.box||0)>=MASTERED_BOX?'Mastered':'Learning'} · right ${c.right||0}, missed ${c.wrong||0}" aria-label="Progress ${c.box||0} of 5">${[1,2,3,4,5].map(i=>`<i class="${i<=(c.box||0)?'on':''}"></i>`).join('')}</span>`;
+ root.innerHTML=`<div class="toolbar"><button type="button" class="ghost" data-close-deck>← All decks</button><span class="grow"></span><button type="button" class="ghost" data-study-quiz="${d.id}" ${st.total>1?'':'disabled'}>Quiz</button><button type="button" class="primary" data-study-cards="${d.id}" ${st.total?'':'disabled'}>Practice cards</button></div>
+ <div class="card deck-page" style="--subject-color:${subjectColor(d.subjectId)}"><div class="deck-head"><span class="deck-subject"><span class="deck-emoji" aria-hidden="true">${s?subjectIcon(s):'🎴'}</span>${esc(s?.name||'No subject')}</span><input class="deck-title-input" id="deckTitle" data-deck-title="${d.id}" value="${esc(d.title||'')}" placeholder="Deck name" aria-label="Deck name"><div class="deck-meta">${st.total} card${st.total===1?'':'s'} · ${st.mastered} mastered${st.review?` · <em>${st.review} to review</em>`:''}</div><span class="deck-bar" role="img" aria-label="${pct}% mastered"><i style="width:${pct}%"></i></span><div class="deck-source">${lesson?`From lesson <b>${esc(lesson.title||'Untitled lesson')}</b><button type="button" class="ghost small" data-deck-sync="${d.id}" title="Add cards for anything new in the lesson">↻ Update from lesson</button>`:d.lessonId?'The lesson this deck came from was deleted; your cards are kept.':'Your own deck'}<span class="grow"></span><button type="button" class="lesson-action lesson-delete" data-delete-deck="${d.id}" aria-label="Delete deck" title="Delete deck">${TRASH_ICON}</button></div></div>
+ <div class="fc-list">${d.cards.length?d.cards.map((c,i)=>`<div class="fc-row" data-card-row="${c.id}"><span class="fc-num">${i+1}</span><div class="fc-fields"><label><span>${esc(CARD_KIND[c.kind]||'Question')}</span><textarea class="input" rows="1" data-card-q="${c.id}" placeholder="Front — term or question">${esc(c.q)}</textarea></label><label><span>Answer</span><textarea class="input" rows="1" data-card-a="${c.id}" placeholder="Back — meaning or answer">${esc(c.a)}</textarea></label></div><div class="fc-side">${dots(c)}<button type="button" class="icon-btn fc-del" data-card-del="${c.id}" aria-label="Delete card ${i+1}" title="Delete card">×</button></div></div>`).join(''):`<div class="empty fc-empty">No cards yet. Add your own below${lesson?`, or ${noCardsTip.charAt(0).toLowerCase()+noCardsTip.slice(1)}`:'.'}</div>`}</div>
+ <div class="fc-add"><button type="button" class="ghost" data-card-add="${d.id}">+ Add card</button></div></div>`;
+ root.querySelectorAll('.fc-row textarea').forEach(autoGrow);
+}
+function renderStudySession(root){
+ const s=studySession,d=deckById(s.deckId),sub=state.settings.subjects.find(x=>x.id===d.subjectId);
+ const head=(pos,len)=>`<div class="toolbar study-bar"><button type="button" class="ghost" data-end-session>← ${esc(d.title||'Deck')}</button><span class="grow"></span><span class="pill">${sub?subjectIcon(sub)+' ':''}${s.mode==='quiz'?'Quiz':'Practice'} · ${Math.min(pos+1,len)} / ${len}</span></div><div class="study-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${len}" aria-valuenow="${pos}"><i style="width:${len?pos/len*100:0}%"></i></div>`;
+ const color=`style="--subject-color:${subjectColor(d.subjectId)}"`;
+ if(s.mode==='cards'){
+  if(s.pos>=s.queue.length){
+   const seen=Object.keys(s.tries).length;
+   root.innerHTML=`${head(s.queue.length,s.queue.length)}<div class="study-done card" ${color}><div class="study-done-icon" aria-hidden="true">${s.missed.length?'💪':'🎉'}</div><h2>${s.missed.length?'Nice work — keep going':'Perfect round!'}</h2><p>You knew <b>${s.got}</b> of <b>${seen}</b> card${seen===1?'':'s'} on the first try.${s.missed.length?` ${s.missed.length} card${s.missed.length===1?'':'s'} will come up first next time.`:''}</p><div class="study-done-actions">${s.missed.length?`<button type="button" class="primary study-focus" data-practice-missed>Practice the ${s.missed.length} missed</button>`:''}<button type="button" class="${s.missed.length?'ghost':'primary study-focus'}" data-study-quiz="${d.id}" ${d.cards.length>1?'':'disabled'}>Take the quiz</button><button type="button" class="ghost" data-end-session>Back to deck</button></div></div>`;
+   return;
+  }
+  const c=d.cards.find(x=>x.id===s.queue[s.pos]);
+  if(!c){s.pos++;return renderStudySession(root)}
+  root.innerHTML=`${head(s.pos,s.queue.length)}<div class="flip-wrap" ${color}><div class="flipcard study-focus ${s.flipped?'flipped':''}" data-flip role="button" tabindex="0" aria-pressed="${s.flipped}" aria-label="${s.flipped?'Answer shown. Press Space to see the front.':'Press Space to show the answer.'}"><div class="flip-inner"><div class="flip-face flip-front"><span class="fc-kind">${esc(CARD_KIND[c.kind]||'Question')}</span><div class="fc-text">${esc(c.q)}</div><small>Click or press Space to flip</small></div><div class="flip-face flip-back"><span class="fc-kind">Answer</span><div class="fc-text">${esc(c.a)}</div></div></div></div>
+  <div class="flip-actions">${flipActionsHtml(s.flipped)}</div></div>`;
+  return;
+ }
+ // quiz
+ if(s.pos>=s.qs.length){
+  const pct=Math.round(s.score/s.qs.length*100);
+  root.innerHTML=`${head(s.qs.length,s.qs.length)}<div class="study-done card" ${color}><div class="quiz-score" style="--pct:${pct}"><b>${pct}%</b><small>${s.score} / ${s.qs.length}</small></div><h2>${pct>=90?'Excellent!':pct>=70?'Good job!':pct>=50?'Getting there':'Keep practising'}</h2>${s.missed.length?`<div class="quiz-review"><h3>Review your mistakes</h3>${s.missed.map(i=>{const q=s.qs[i];return `<div class="quiz-review-item"><small>${esc(q.label)}</small><p>${esc(q.prompt)}</p><b>${esc(q.right)}</b></div>`}).join('')}</div>`:'<p>You answered every question correctly.</p>'}<div class="study-done-actions"><button type="button" class="primary study-focus" data-study-quiz="${d.id}">Retake quiz</button><button type="button" class="ghost" data-study-cards="${d.id}">Practice cards</button><button type="button" class="ghost" data-end-session>Back to deck</button></div></div>`;
+  return;
+ }
+ const q=s.qs[s.pos],done=s.picked!=null;
+ root.innerHTML=`${head(s.pos,s.qs.length)}<div class="quiz-card card" ${color}><span class="fc-kind">${esc(q.label)}</span><div class="quiz-prompt">${esc(q.prompt)}</div><div class="quiz-options" role="group" aria-label="Answers">${q.options.map((o,i)=>{const cls=done?(o===q.right?'right':i===s.picked?'wrong':'dim'):'';return `<button type="button" class="quiz-opt ${cls} ${i===0&&!done?'study-focus':''}" data-quiz-pick="${i}" ${done?'disabled':''}><span class="quiz-key">${i+1}</span><span class="quiz-text">${esc(o)}</span></button>`}).join('')}</div>${done?`<div class="quiz-feedback ${q.options[s.picked]===q.right?'ok':'bad'}" role="status">${q.options[s.picked]===q.right?'✓ Correct!':'✗ Not quite — the right answer is highlighted.'}<button type="button" class="primary" data-quiz-next>${s.pos+1<s.qs.length?'Next question':'See results'} <small>Enter</small></button></div>`:''}</div>`;
+}
+function newDeckModal(){
+ const subj=$('#view-study')?.dataset.subj||state.settings.subjects[0]?.id||'';
+ openModal('New deck',`<div class="field"><label for="ndTitle">Deck name</label><input class="input" id="ndTitle" placeholder="e.g. Midterm reviewer" autocomplete="off"></div><div class="field" style="margin-top:12px"><label for="ndSubject">Subject</label><select class="select" id="ndSubject">${state.settings.subjects.map(s=>`<option value="${s.id}" ${s.id===subj?'selected':''}>${esc(subjectIcon(s)+' '+(s.name||'Unnamed subject'))}</option>`).join('')}</select></div>`,`<button type="button" class="ghost" data-close>Cancel</button><button type="button" class="primary" id="ndCreate">Create deck</button>`);
+ const create=()=>{const d={id:uid('d'),subjectId:$('#ndSubject').value,lessonId:'',title:cleanText($('#ndTitle').value)||'New deck',created:Date.now(),updated:Date.now(),cards:[newCard('','')]};state.study.decks.unshift(d);save();$('#modalRoot').innerHTML='';openDeck(d.id);setTimeout(()=>$('[data-card-q]')?.focus(),0)};
+ $('#ndCreate').onclick=create;
+ $('#ndTitle').addEventListener('keydown',e=>{if(e.key==='Enter')create()});
+ setTimeout(()=>$('#ndTitle')?.focus(),0);
+}
+document.addEventListener('click',e=>{
+ const t=e.target;let el;
+ if((el=t.closest('[data-make-cards]'))){
+  const nb=state.notes.subjects[state.selectedSubject],n=nb?.notes?.find(x=>x.id===state.selectedNote);if(!n)return;
+  // Keep what is in the editor right now (the lesson is left for the Study page).
+  const title=$('#lessonTitle'),body=$('#lessonBody');if(title&&cleanText(title.value))n.title=title.value;if(body)n.body=editorBodyHtml(body);
+  const existed=state.study.decks.some(d=>d.lessonId===n.id);
+  const {deck,added}=syncDeckFromLesson(state.selectedSubject,n);
+  save();openDeck(deck.id);
+  toast(added?`${added} card${added===1?'':'s'} ${existed?'added':'made'} from this lesson`:existed?'No new cards found in the lesson':'No cards found yet — bold key terms or write “Term – meaning” lines');
+  return;
+ }
+ if(!t.closest('#view-study'))return;
+ if((el=t.closest('[data-go-subjects]'))){state.selectedSubject=null;setView('subjects');return}
+ if((el=t.closest('[data-new-deck]')))return newDeckModal();
+ if((el=t.closest('[data-open-deck]')))return openDeck(el.dataset.openDeck);
+ if((el=t.closest('[data-close-deck]')))return openDeck('');
+ if((el=t.closest('[data-study-cards]')))return startCards(el.dataset.studyCards);
+ if((el=t.closest('[data-study-quiz]')))return startQuiz(el.dataset.studyQuiz);
+ if((el=t.closest('[data-practice-missed]')))return startCards(studySession.deckId,[...studySession.missed]);
+ if((el=t.closest('[data-end-session]'))){const id=studySession?.deckId;studySession=null;return openDeck(id)}
+ if((el=t.closest('[data-flip]')))return flipCard();
+ if((el=t.closest('[data-card-again]')))return answerCard(false);
+ if((el=t.closest('[data-card-got]')))return answerCard(true);
+ if((el=t.closest('[data-quiz-pick]')))return answerQuiz(+el.dataset.quizPick);
+ if((el=t.closest('[data-quiz-next]')))return nextQuiz();
+ if((el=t.closest('[data-deck-sync]'))){const d=deckById(el.dataset.deckSync),n=d&&deckLesson(d);if(!n)return;const {added}=syncDeckFromLesson(d.subjectId,n);save();renderStudy();toast(added?`${added} new card${added===1?'':'s'} added`:'No new cards found in the lesson');return}
+ if((el=t.closest('[data-card-add]'))){const d=deckById(el.dataset.cardAdd);if(!d)return;d.cards.push(newCard('',''));d.updated=Date.now();save();renderStudy();const qs=$$('#view-study [data-card-q]');qs[qs.length-1]?.focus();return}
+ if((el=t.closest('[data-card-del]'))){const d=deckById($('#view-study').dataset.deck);if(!d)return;d.cards=d.cards.filter(c=>c.id!==el.dataset.cardDel);d.updated=Date.now();save();renderStudy();toast('Card deleted');return}
+ if((el=t.closest('[data-delete-deck]'))){const d=deckById(el.dataset.deleteDeck);if(!d)return;confirmDelete({title:'Delete this deck?',detail:`“${esc(d.title||'Untitled deck')}” and its ${d.cards.length} card${d.cards.length===1?'':'s'} will be permanently removed. The lesson itself is not affected.`,confirmLabel:'Delete deck',onCancel:()=>$('[data-delete-deck]')?.focus(),onConfirm:()=>{state.study.decks=state.study.decks.filter(x=>x.id!==d.id);save();openDeck('');toast('Deck deleted')}});return}
+});
+document.addEventListener('input',e=>{
+ const t=e.target;if(!t.closest?.('#view-study'))return;
+ const d=deckById($('#view-study').dataset.deck);if(!d)return;
+ if(t.dataset.deckTitle){d.title=t.value;d.updated=Date.now();save();return}
+ const id=t.dataset.cardQ||t.dataset.cardA,c=id&&d.cards.find(x=>x.id===id);
+ if(c){if(t.dataset.cardQ)c.q=t.value;else c.a=t.value;d.updated=Date.now();autoGrow(t);save()}
+});
+document.addEventListener('change',e=>{if(e.target.id==='studySubject'){$('#view-study').dataset.subj=e.target.value;renderStudy()}});
+// Keyboard: Space/Enter flips, 1/← = Again, 2/→ = Got it; in a quiz 1–4 pick an answer and Enter goes on.
+addEventListener('keydown',e=>{
+ const s=studySession;
+ if(!s||state.view!=='study'||e.ctrlKey||e.metaKey||e.altKey||$('#modalRoot').children.length)return;
+ if(e.target.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+ if(s.mode==='cards'&&s.pos<s.queue.length){
+  if((e.key===' '||e.key==='Enter')&&!e.target.closest('button:not([data-flip])')){e.preventDefault();flipCard();return}
+  if(s.flipped&&(e.key==='1'||e.key==='ArrowLeft')){e.preventDefault();answerCard(false);return}
+  if(s.flipped&&(e.key==='2'||e.key==='ArrowRight')){e.preventDefault();answerCard(true);return}
+ }
+ if(s.mode==='quiz'&&s.pos<s.qs.length){
+  if(s.picked==null&&/^[1-4]$/.test(e.key)){e.preventDefault();answerQuiz(+e.key-1);return}
+  if(s.picked!=null&&e.key==='Enter'){e.preventDefault();nextQuiz();return}
+ }
+});
 function renderSettings(){const root=$('#view-settings');const accent=state.settings.accent||'#367e83';root.innerHTML=`<div class="settings-grid"><div class="card settings-card"><h2>Subjects</h2><p>Rename your 8 subject spaces and add each one's professor. Changes update your task and notebook labels too.</p>${state.settings.subjects.map((s,i)=>`<div class="subject-edit"><span class="emoji-pick"><button type="button" class="emoji-btn" data-iconedit="${s.id}" data-icon="${esc(s.icon||'')}" aria-haspopup="true" aria-expanded="false" aria-label="Choose an icon for subject ${i+1}" title="Choose icon">${subjectIcon(s)}</button><span class="emoji-pop" role="group" aria-label="Subject icons" hidden><button type="button" class="emoji-auto" data-pick-icon="" title="Pick automatically from the subject name">Auto</button>${SUBJECT_EMOJIS.map(x=>`<button type="button" data-pick-icon="${x}" aria-label="${x}">${x}</button>`).join('')}</span></span><input class="input" data-subedit="${s.id}" value="${esc(s.name)}" placeholder="Subject name" aria-label="Subject ${i+1} name"><input class="input subject-prof-input" data-profedit="${s.id}" value="${esc(s.prof||'')}" placeholder="Professor (optional)" aria-label="Subject ${i+1} professor"></div>`).join('')}<button class="primary" style="margin-top:15px" data-save-subjects>Save subjects</button></div><div class="card settings-card"><h2>Appearance</h2><p>Choose a comfortable look for long study sessions.</p><div class="toolbar"><button class="ghost" data-theme="light">☀ Light</button><button class="ghost" data-theme="dark">☾ Dark</button><button class="ghost" data-theme="system">◐ System</button></div><h2 style="margin-top:25px">Accent color</h2><p>Pick the color used for buttons, highlights and active tabs across the app.</p><div style="display:flex;align-items:center;gap:10px"><input type="color" id="accentColor" value="${accent}" aria-label="Custom accent color"><div class="color-swatches" style="margin-top:0">${SUBJECT_COLORS.map(c=>`<button type="button" class="swatch ${c.toLowerCase()===accent.toLowerCase()?'active':''}" data-accent-swatch="${c}" style="background:${c}" aria-label="Use accent color ${c}" title="${c}"></button>`).join('')}</div></div><h2 style="margin-top:25px">Backup</h2><p>Download your planner data or restore it on another device.</p><button class="primary" data-backup>Download backup</button><label class="ghost" style="display:inline-block;margin-left:6px">Restore<input id="restoreFile" type="file" accept="application/json" hidden></label></div></div>`}
-function downloadBackup(){const blob=new Blob([JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,settings:state.settings},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='school-planner-backup.json';a.click();URL.revokeObjectURL(a.href)}
+function downloadBackup(){const blob=new Blob([JSON.stringify({calendar:state.calendar,tasks:state.tasks,notes:state.notes,study:state.study,settings:state.settings},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='school-planner-backup.json';a.click();URL.revokeObjectURL(a.href)}
 function applyTheme(t){if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.body.classList.toggle('dark',t==='dark');state.settings.theme=state.settings.theme==='system'?'system':state.settings.theme;}
 function closeMobile(){$('#sidebar').classList.remove('mobile-open');$('#scrim').classList.remove('show')}
 // Collapsed/expanded is a per-device preference, so it lives in localStorage rather than the synced planner.
