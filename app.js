@@ -681,6 +681,9 @@ function calendarItems(key){
  return out;
 }
 function eventLabel(e){return `${e.start?fmtTime(e.start)+' ':''}${e.repeat&&e.repeat!=='none'?'↻ ':''}${e.title}`}
+// Phones show fewer events per month cell, so re-render the calendar when crossing that width.
+const CAL_PHONE=matchMedia('(max-width:760px)');
+CAL_PHONE.addEventListener('change',()=>{if(state.view==='calendar')renderCalendar()});
 function renderCalendar(){
  const root=$('#view-calendar'), mode=state.calMode||'month';
  const cursor=new Date(state.calCursor); cursor.setHours(0,0,0,0);
@@ -711,12 +714,12 @@ function renderCalendar(){
    }
    body=`<div class="agenda">${rows||'<div class="empty">Nothing scheduled in this range.</div>'}</div>`;
  }else{
-   const cells=[];
+   const cells=[], max=mode==='week'?8:(CAL_PHONE.matches?2:4);
    for(let i=0;i<count;i++){
      const d=new Date(start); d.setDate(start.getDate()+i); const k=iso(d), items=calendarItems(k).filter(matches), muted=mode==='month'&&d.getMonth()!==cursor.getMonth();
-     cells.push(`<div class="day ${muted?'muted':''} ${k===today()?'today':''}" data-day="${k}" tabindex="0" role="button"><div class="day-num">${d.getDate()}</div>${items.slice(0,mode==='week'?8:4).map(it=>it.kind==='task'?`<button class="event task-event" data-calendar-task="1">📌 ${esc(it.t.task||'Untitled')}</button>`:`<button class="event" data-event="${it.e.id}" data-event-date="${k}" style="background:${tintColor(it.e.color,.22)};border-left-color:${esc(it.e.color||'#367e83')}" title="${esc(eventLabel(it.e))}${it.e.subject?' • '+esc(taskSubject(it.e.subject)):''}">${esc(eventLabel(it.e))}</button>`).join('')}${items.length>(mode==='week'?8:4)?`<span class="pill">+${items.length-(mode==='week'?8:4)} more</span>`:''}</div>`);
+     cells.push(`<div class="day ${muted?'muted':''} ${k===today()?'today':''}" data-day="${k}" tabindex="0" role="button"><div class="day-num"><small class="day-dow">${d.toLocaleDateString(undefined,{weekday:'short'})}</small>${d.getDate()}</div>${items.slice(0,max).map(it=>it.kind==='task'?`<button class="event task-event" data-calendar-task="1">📌 ${esc(it.t.task||'Untitled')}</button>`:`<button class="event" data-event="${it.e.id}" data-event-date="${k}" style="background:${tintColor(it.e.color,.22)};border-left-color:${esc(it.e.color||'#367e83')}" title="${esc(eventLabel(it.e))}${it.e.subject?' • '+esc(taskSubject(it.e.subject)):''}">${esc(eventLabel(it.e))}</button>`).join('')}${items.length>max?`<span class="pill">+${items.length-max} more</span>`:''}</div>`);
    }
-   body=`<div class="calendar-wrap"><div class="calendar-head">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="dow">${x}</div>`).join('')}</div><div class="calendar-grid ${mode==='week'?'week-grid':''}">${cells.join('')}</div></div>`;
+   body=`<div class="calendar-wrap is-${mode}"><div class="calendar-head">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>`<div class="dow">${x}</div>`).join('')}</div><div class="calendar-grid ${mode==='week'?'week-grid':''}">${cells.join('')}</div></div>`;
  }
  root.innerHTML=`<div class="toolbar calendar-toolbar"><div class="seg">${modes.map(x=>`<button class="${mode===x?'active':''}" data-cal="${x}">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div><button class="ghost" data-calstep="-1">‹</button><button class="ghost" data-caltoday>Today</button><button class="ghost" data-calstep="1">›</button><div class="calendar-title"><b>${esc(title)}</b></div><input class="input calendar-search" id="calendarSearch" value="${esc(q)}" placeholder="Search events…"><label class="calendar-check"><input type="checkbox" id="calendarShowTasks" ${state.calendar.showTasks!==false?'checked':''}> Task deadlines</label><button class="ghost" data-export-cal title="Add your schedule to Google, Apple or Outlook calendar">⇩ Export</button><button class="primary" data-add-event>+ Add event</button></div><div class="card calendar-card">${body}</div>`;
 }
