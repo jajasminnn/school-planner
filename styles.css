@@ -441,3 +441,12 @@ body.dark .sheet-scroll-wrap::after{background:linear-gradient(to left,rgba(0,0,
 }
 @media(max-width:560px){.calendar-toolbar .seg{flex-basis:100%}.calendar-toolbar .calendar-search{flex-basis:100px}.calendar-toolbar [data-export-cal],.calendar-toolbar [data-add-event]{flex:1 1 40%}.calendar-toolbar .calendar-check{order:3;flex-basis:100%;margin-left:0}}
 @media(max-width:400px){.dow{font-size:9px}.event{font-size:8px}}
+/* Day list (phones): a date's schedule, with an Edit button on each event */
+.day-list{display:flex;flex-direction:column;gap:10px}
+.day-item{display:flex;align-items:flex-start;gap:12px;padding:12px 12px 12px 14px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:13px;background:var(--panel)}
+.day-item[data-calendar-task]{border-left-width:1px;align-items:center;cursor:pointer}
+.day-item .row-main b{font-size:14px;line-height:1.35}
+.day-item .row-main span{font-size:12px;margin-top:4px}
+.day-item-notes{margin:7px 0 0;font-size:12px;line-height:1.45;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.day-item-edit{flex:none;padding:7px 12px;font-size:13px;font-weight:650}
+.day-item-go{flex:none;font-size:12px;font-weight:700;color:var(--accent)}
