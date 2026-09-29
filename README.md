@@ -36,8 +36,6 @@ JASync is a personal school planner: schedules, deadlines, subjects, notes, and 
 | `sw.js`, `manifest.json` | Service worker (offline cache) and app manifest. |
 | `logo.png`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | JASync logo, browser tab icon and home-screen icons. |
 
-`shared.js`, `calendar.js` and `notes.js` are left over from an older multi-page version and are not loaded by any page.
-
 ## Sign-in flow
 1. A signed-out visitor opening the site sees only the landing page.
 2. **Get Started** opens the login page on *Create account*; **Sign In** opens it on *Log in*.
