@@ -649,7 +649,7 @@ function setupFirebaseAuth(){
 function migrate(){let old={}; try{for(const [k,v] of Object.entries(OLD)){const x=JSON.parse(localStorage.getItem(v)||'null'); if(x)old[k]=x}}catch{}; if(old.calendar)state.calendar=old.calendar; if(old.tasks){state.tasks=old.tasks;state.settings.subjects=(old.tasks.meta?.subjects||[]).map(x=>({id:x.id,name:x.name||''}))}; if(old.notes){state.notes={notes:old.notes.notes||[],subjects:{}}; (old.notes.folders||[]).forEach(f=>{state.notes.subjects[f.id]={id:f.id,name:f.name,body:''}})}; if(!state.settings.subjects?.length){state.settings.subjects=Array.from({length:8},(_,i)=>({id:'s'+(i+1),name:`Subject ${i+1}`}))}}
 // Startup shows a blank planner, then loads the signed-in account's own data (or the guest planner when signed out).
 function syncSubjects(){state.tasks.meta=state.tasks.meta||{};state.tasks.meta.subjects=state.settings.subjects.map(s=>({id:s.id,name:s.name}));state.notes.subjects=state.notes.subjects||{};state.settings.subjects.forEach(s=>{if(!state.notes.subjects[s.id])state.notes.subjects[s.id]={id:s.id,name:s.name,body:'',notes:[]};state.notes.subjects[s.id].name=s.name});}
-function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
+function toast(t,ms=1800){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),ms)}
 function openModal(title,body,actions=''){const root=$('#modalRoot');root.innerHTML=`<div class="modal-backdrop" id="backdrop"><div class="modal"><div class="modal-head"><h2>${title}</h2><button class="icon-btn" data-close>×</button></div><div class="modal-body">${body}</div>${actions?`<div class="modal-foot">${actions}</div>`:''}</div></div>`;$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop'||e.target.closest('[data-close]'))root.innerHTML=''})}
 function setView(v){state.view=v; $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v)); $$('.view').forEach(x=>x.classList.toggle('active',x.id==='view-'+v));const meta={dashboard:['Overview','Dashboard'],calendar:['Plan','Calendar'],tasks:['Stay on top','Tasks'],subjects:['Study space','My Subjects'],notes:['Write & remember','Notes'],study:['Practice','Flashcards & Quiz'],settings:['Personalize','Settings']}[v];$('#eyebrow').textContent=meta[0];$('#pageTitle').textContent=meta[1]; if(innerWidth<761)closeMobile(); render();}
 function render(){renderBadge();({dashboard:renderDashboard,calendar:renderCalendar,tasks:renderTasks,subjects:renderSubjects,notes:renderNotes,study:renderStudy,settings:renderSettings}[state.view])()}
@@ -1419,7 +1419,7 @@ async function insertImages(editor,files){
    const id=adoptImage(src,true);
    editor.focus();
    document.execCommand('insertHTML',false,`<img data-img="${id}" src="${src}" alt="${esc(f.name||'')}">`);
-  }catch(err){toast(/timed out/.test(err?.message)?'The browser didn’t hand over the picture — try pasting again, or restart the browser.':`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
+  }catch(err){toast(/timed out/.test(err?.message)?'The browser didn’t hand over the picture — try again, or restart the browser.':`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`,5000)}
  }
  editor.dispatchEvent(new Event('input',{bubbles:true}));
 }
@@ -1449,7 +1449,7 @@ async function fixLocalImages(editor,files){
  for(const [i,img] of broken.entries()){
   const f=files[i];if(!f){img.remove();continue}
   try{const src=await shrinkDataUrl(await readDataUrl(f));img.src=src;img.dataset.img=adoptImage(src,true);img.removeAttribute('width');img.removeAttribute('height')}
-  catch{img.remove();toast('Couldn’t bring in a picture from that paste — copy the picture on its own and paste again.')}
+  catch{img.remove();toast('Couldn’t bring in a picture from that paste — copy the picture on its own and paste again.',5000)}
  }
  editor.dispatchEvent(new Event('input',{bubbles:true}));
 }
@@ -1545,7 +1545,9 @@ if(attachInput){
  const files=note&&attachInput.files?[...attachInput.files]:[];
  attachInput.value='';
  if(note&&files.length){
-  Promise.all(files.map(f=>{const id=uid('att');return putFileBlob(id,f,f.name,f.type).then(()=>({id,name:f.name,type:f.type,size:f.size,addedAt:Date.now()}))}))
+  // Saving a file means the browser reading it; if that stalls, say so after 20 s instead of doing nothing.
+  const stalled=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out')),20000));
+  Promise.race([Promise.all(files.map(f=>{const id=uid('att');return putFileBlob(id,f,f.name,f.type).then(()=>({id,name:f.name,type:f.type,size:f.size,addedAt:Date.now()}))})),stalled])
   .then(metas=>{
    note.attachments=note.attachments||[];
    metas.forEach(m=>note.attachments.push(m));
@@ -1553,7 +1555,7 @@ if(attachInput){
    save();
    refreshAttachPanel(prefix,note);
   })
-  .catch(()=>toast('Could not save the attached file on this device.'));
+  .catch(err=>toast(/timed out/.test(err?.message)?'The browser didn’t hand over the file — restart the browser and try again.':'Could not save the attached file on this device.',5000));
  }
  return;
 }
