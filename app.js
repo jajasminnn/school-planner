@@ -355,7 +355,8 @@ addEventListener('pagehide',flushCloudSave);
 const IMG_MAX_SIDE=1200,IMG_QUALITY=.82,IMG_TARGET=700*1024,IMG_CLOUD_MAX=1000*1000,IMG_PREFIX='img-';
 const imgCache=new Map();// id -> data URL, for this page
 const imgRef=id=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc(IMG_PREFIX+id):null;
-const readDataUrl=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(f)});
+// Gives up after 15 s so a clipboard picture the browser never hands over shows a message instead of nothing.
+const readDataUrl=f=>new Promise((res,rej)=>{const r=new FileReader();const t=setTimeout(()=>{r.abort();rej(new Error('read timed out'))},15000);r.onload=()=>{clearTimeout(t);res(r.result)};r.onerror=()=>{clearTimeout(t);rej(r.error)};r.readAsDataURL(f)});
 // At most 1200px on the longest side, as JPEG, stepping down until it is comfortably under the cloud limit.
 async function shrinkDataUrl(src){
  const type=src.slice(5,src.indexOf(';'));
@@ -1418,7 +1419,7 @@ async function insertImages(editor,files){
    const id=adoptImage(src,true);
    editor.focus();
    document.execCommand('insertHTML',false,`<img data-img="${id}" src="${src}" alt="${esc(f.name||'')}">`);
-  }catch{toast(`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
+  }catch(err){toast(/timed out/.test(err?.message)?'The browser didn’t hand over the picture — try pasting again, or restart the browser.':`Couldn't add “${f.name||'image'}” — try a JPG or PNG.`)}
  }
  editor.dispatchEvent(new Event('input',{bubbles:true}));
 }
@@ -1428,10 +1429,23 @@ const imageFiles=list=>[...(list||[])].filter(f=>f.type.startsWith('image/'));
 // copied from Word, keep the browser's normal behaviour.
 document.addEventListener('paste',e=>{
  const editor=editorOf(e);if(!editor)return;
- const files=imageFiles(e.clipboardData?.files);
- if(!files.length||e.clipboardData.getData('text/plain').trim())return;
- e.preventDefault();insertImages(editor,files);
+ const cd=e.clipboardData;if(!cd)return;
+ const files=imageFiles(cd.files.length?cd.files:[...cd.items].filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean));
+ if(!files.length)return;
+ if(!cd.getData('text/plain').trim()){e.preventDefault();insertImages(editor,files);return}
+ // Word, PowerPoint and Outlook point their pictures at files on the computer (file:///…), which a web page
+ // can't open, so they paste as broken pictures. Let the text paste, then swap those for the copied pictures.
+ if(/<img[^>]+src=["']?file:/i.test(cd.getData('text/html')))setTimeout(()=>fixLocalImages(editor,files));
 });
+async function fixLocalImages(editor,files){
+ const broken=[...editor.querySelectorAll('img[src^="file:"]')];
+ for(const [i,img] of broken.entries()){
+  const f=files[i];if(!f){img.remove();continue}
+  try{const src=await shrinkDataUrl(await readDataUrl(f));img.src=src;img.dataset.img=adoptImage(src,true);img.removeAttribute('width');img.removeAttribute('height')}
+  catch{img.remove();toast('Couldn’t bring in a picture from that paste — copy the picture on its own and paste again.')}
+ }
+ editor.dispatchEvent(new Event('input',{bubbles:true}));
+}
 // Dropping files: pictures go in where they were dropped. Other files would make the browser leave the
 // planner to open them, so point to the attachments instead.
 document.addEventListener('dragover',e=>{if(editorOf(e)&&e.dataTransfer?.types.includes('Files'))e.preventDefault()});
