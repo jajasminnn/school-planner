@@ -1432,7 +1432,14 @@ document.addEventListener('paste',e=>{
  const cd=e.clipboardData;if(!cd)return;
  const files=imageFiles(cd.files.length?cd.files:[...cd.items].filter(i=>i.kind==='file').map(i=>i.getAsFile()).filter(Boolean));
  if(!files.length)return;
- if(!cd.getData('text/plain').trim()){e.preventDefault();insertImages(editor,files);return}
+ // Chrome and Firefox paste a lone picture themselves, straight into the text (editorBodyHtml then shrinks and
+ // stores it). That skips reading the clipboard file, which can stall in Chrome. Only browsers that put nothing
+ // in fall back to reading the file here.
+ if(!cd.getData('text/plain').trim()){
+  const before=new Set(editor.querySelectorAll('img'));
+  setTimeout(()=>{if(![...editor.querySelectorAll('img')].some(i=>!before.has(i)))insertImages(editor,files)});
+  return;
+ }
  // Word, PowerPoint and Outlook point their pictures at files on the computer (file:///…), which a web page
  // can't open, so they paste as broken pictures. Let the text paste, then swap those for the copied pictures.
  if(/<img[^>]+src=["']?file:/i.test(cd.getData('text/html')))setTimeout(()=>fixLocalImages(editor,files));
