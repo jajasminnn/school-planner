@@ -389,7 +389,7 @@ async function uploadImage(id,src){
  try{await ref.set({owner:cloudUser.uid,kind:'image',data:src,createdAt:firebase.firestore.FieldValue.serverTimestamp()});setPending(id,false)}
  catch(err){console.error('Picture upload failed:',err)}
 }
-async function flushPendingImages(){for(const id of pendingImages()){const src=await loadImageSrc(id,false);if(src)await uploadImage(id,src);else setPending(id,false)}}
+async function flushPendingImages(){for(const id of pendingImages()){const src=await loadImageSrc(id,false);if(src)await uploadImage(id,src);else if(src===null)setPending(id,false)}}
 addEventListener('online',()=>{if(cloudLoaded)flushPendingImages()});
 // Gives a picture its id right away (so the note's text never has to hold it) and saves it in the background:
 // on this device first, then shrunk if it wasn't already, then to the cloud. onSmall gets the shrunk version.
@@ -404,8 +404,12 @@ function adoptImage(src,alreadyShrunk=false,onSmall){
 }
 async function loadImageSrc(id,fromCloud=true){
  if(imgCache.has(id))return imgCache.get(id);
- try{const rec=await getFileBlob(IMG_PREFIX+id);if(rec?.blob){imgCache.set(id,rec.blob);return rec.blob}}catch{}
- const ref=fromCloud&&imgRef(id);if(!ref)return null;
+ // Big pictures sit in their own file inside the browser's storage, and some browsers never finish reading
+ // those back; after 3 s, go to the cloud copy instead of leaving the picture blank.
+ const STALLED={};let stalled=false;
+ try{const rec=await Promise.race([getFileBlob(IMG_PREFIX+id),new Promise(r=>setTimeout(()=>r(STALLED),3000))]);stalled=rec===STALLED;if(rec?.blob){imgCache.set(id,rec.blob);return rec.blob}}catch{}
+ // undefined: the copy on this device couldn't be read (it may still be there); null: there is no picture.
+ const ref=fromCloud&&imgRef(id);if(!ref)return stalled?undefined:null;
  try{
   const snap=await ref.get(),src=snap.exists?snap.data().data:null;
   if(src){imgCache.set(id,src);putFileBlob(IMG_PREFIX+id,src,'','image').catch(()=>{})}
