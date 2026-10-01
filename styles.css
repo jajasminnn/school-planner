@@ -96,6 +96,7 @@ iframe.print-frame{position:fixed;right:0;bottom:0;width:0;height:0;border:0}
 .attach-icon{font-size:15px;flex:none}
 .attach-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
 .attach-size{color:var(--muted);white-space:nowrap;flex:none}
+.attach-local{flex:none;white-space:nowrap;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px}
 .attach-open,.attach-remove{border:0;background:transparent;color:var(--muted);width:24px;height:24px;border-radius:7px;flex:none}
 .attach-open:hover{background:var(--panel);color:var(--accent)}
 .attach-remove:hover{background:#fbe7e7;color:var(--danger)}

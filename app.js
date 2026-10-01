@@ -264,7 +264,7 @@ async function saveNoteAsPdf(prefix){
  f.contentWindow.addEventListener('afterprint',()=>setTimeout(()=>f.remove(),500));
  f.contentWindow.focus();f.contentWindow.print();
 }
-function attachmentsHtml(note,prefix){const list=note.attachments||[];return `<div class="attach-panel" data-attach-owner="${prefix}"><div class="attach-head"><span>📎 Attachments${list.length?' ('+list.length+')':''}</span><label class="ghost attach-add">+ Add file<input type="file" multiple hidden class="attach-input" data-attach-target="${prefix}"></label></div><div class="attach-list">${list.map(a=>`<div class="attach-chip" data-attach-id="${a.id}"><span class="attach-icon">${FILE_ICONS[fileKind(a.type,a.name)]}</span><span class="attach-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="attach-size">${humanSize(a.size)}</span><button type="button" class="attach-open" data-attach-open="${a.id}" title="Open">↗</button><button type="button" class="attach-remove" data-attach-remove="${a.id}" title="Remove">✕</button></div>`).join('')||'<div class="attach-empty">No files attached yet. Lecture slides, PDFs and images stay saved on this device.</div>'}</div></div>`}
+function attachmentsHtml(note,prefix){const list=note.attachments||[];return `<div class="attach-panel" data-attach-owner="${prefix}"><div class="attach-head"><span>📎 Attachments${list.length?' ('+list.length+')':''}</span><label class="ghost attach-add">+ Add file<input type="file" multiple hidden class="attach-input" data-attach-target="${prefix}"></label></div><div class="attach-list">${list.map(a=>`<div class="attach-chip" data-attach-id="${a.id}"><span class="attach-icon">${FILE_ICONS[fileKind(a.type,a.name)]}</span><span class="attach-name" title="${esc(a.name)}">${esc(a.name)}</span><span class="attach-size">${humanSize(a.size)}</span>${a.tooBig?'<span class="attach-local" title="Too big for the cloud (about 1 MB) — saved only on the device it was added from">device only</span>':''}<button type="button" class="attach-open" data-attach-open="${a.id}" title="Open">↗</button><button type="button" class="attach-remove" data-attach-remove="${a.id}" title="Remove">✕</button></div>`).join('')||'<div class="attach-empty">No files attached yet. Files up to about 1 MB are also saved to your account; bigger pictures are shrunk for it, other bigger files stay on this device.</div>'}</div></div>`}
 function refreshAttachPanel(prefix,note){const panel=document.querySelector(`.attach-panel[data-attach-owner="${prefix}"]`);if(panel)panel.outerHTML=attachmentsHtml(note,prefix)}
 function resolveNote(prefix){if(prefix==='lesson'){const s=state.notes.subjects[state.selectedSubject];return (s&&s.notes&&s.notes.find(x=>x.id===state.selectedNote))||null}if(prefix==='gn')return currentGeneralNote;return null}
 let cloudUser=null;
@@ -390,7 +390,65 @@ async function uploadImage(id,src){
  catch(err){console.error('Picture upload failed:',err)}
 }
 async function flushPendingImages(){for(const id of pendingImages()){const src=await loadImageSrc(id,false);if(src)await uploadImage(id,src);else if(src===null)setPending(id,false)}}
-addEventListener('online',()=>{if(cloudLoaded)flushPendingImages()});
+addEventListener('online',()=>{if(cloudLoaded){flushPendingImages();syncAttachments()}});
+/* ---- Attachments in the cloud ----
+ Attached files are kept in this browser's IndexedDB. Each one up to ATT_CLOUD_MAX also gets its own cloud
+ record (users/{uid}/planner/att-<id>), so it opens on other devices and survives this browser's data being
+ lost. Bigger pictures are shrunk for the cloud copy; other bigger files stay on this device only (tooBig).
+ The note's attachment entry gets cloud:true once its copy is up. */
+const ATT_CLOUD_MAX=950*1000,ATT_PREFIX='att-';
+const attRef=id=>cloudUser&&db?db.collection('users').doc(cloudUser.uid).collection('planner').doc(ATT_PREFIX+id):null;
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out')),ms))]);
+const dataUrlBytes=src=>Uint8Array.from(atob(src.slice(src.indexOf(',')+1)),c=>c.charCodeAt(0));
+function bytesDataUrl(bytes,type){let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return `data:${type||'application/octet-stream'};base64,${btoa(s)}`}
+function allAttachments(){
+ const notes=[...(state.notes.general||[]),...Object.values(state.notes.subjects||{}).flatMap(s=>s.notes||[])];
+ return notes.flatMap(n=>n.attachments||[]);
+}
+// The file as it goes to the cloud, or null when it is too big (and not a picture that can be shrunk).
+async function cloudCopy(blob,type){
+ if(blob.size<=ATT_CLOUD_MAX)return {type,bytes:new Uint8Array(await withTimeout(blob.arrayBuffer(),15000))};
+ if(!type.startsWith('image/'))return null;
+ const small=await shrinkDataUrl(await readDataUrl(blob));
+ return small.length*.75<=ATT_CLOUD_MAX?{type:small.slice(5,small.indexOf(';')),bytes:dataUrlBytes(small)}:null;
+}
+// Returns true when the attachment's entry changed (and the planner needs saving).
+async function uploadAttachment(a,blob){
+ const ref=attRef(a.id);if(!ref||!cloudLoaded||a.cloud||a.tooBig)return false;
+ const copy=await cloudCopy(blob,a.type||'');
+ if(!copy){a.tooBig=true;return true}
+ await ref.set({owner:cloudUser.uid,kind:'attachment',name:a.name||'',type:copy.type,data:firebase.firestore.Blob.fromUint8Array(copy.bytes),createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+ a.cloud=true;return true;
+}
+// Puts up every attachment that has no cloud copy yet (older ones, or ones added while offline).
+let syncingAttachments=false;
+async function syncAttachments(){
+ if(syncingAttachments||!cloudLoaded)return;syncingAttachments=true;let changed=false;
+ try{
+  for(const a of allAttachments().filter(a=>!a.cloud&&!a.tooBig)){
+   try{const rec=await withTimeout(getFileBlob(a.id),5000);if(rec?.blob&&await uploadAttachment(a,rec.blob))changed=true}
+   catch(err){console.warn('Attachment not synced yet:',a.name,err?.message)}
+  }
+ }finally{syncingAttachments=false}
+ if(changed){save();if(state.view==='subjects'&&state.selectedNote)refreshAttachPanel('lesson',resolveNote('lesson'));if(currentGeneralNote)refreshAttachPanel('gn',currentGeneralNote)}
+}
+function deleteAttachmentCopies(id){deleteFileBlob(id);attRef(id)?.delete().catch(()=>{})}
+// Opens an attachment from this device, or from the cloud when this device doesn't have it (or can't read it).
+async function openAttachment(id){
+ const a=allAttachments().find(x=>x.id===id);
+ let rec=null;try{rec=await withTimeout(getFileBlob(id),3000)}catch{}
+ if(rec?.blob){const url=URL.createObjectURL(rec.blob);window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),60000);return}
+ const ref=attRef(id);
+ if(!ref)return toast(a?.tooBig?'This file is saved only on the device it was added from.':'File not found on this device.',5000);
+ let snap;try{snap=await ref.get()}catch{return toast('Couldn’t reach the cloud — check your connection.',5000)}
+ if(!snap.exists)return toast(a?.tooBig?'This file is saved only on the device it was added from.':'This file isn’t in the cloud yet — open it on the device it was added from.',5000);
+ const d=snap.data(),bytes=d.data.toUint8Array(),name=d.name||a?.name||'file';
+ putFileBlob(id,new Blob([bytes],{type:d.type}),name,d.type).catch(()=>{});
+ // A data: link needs no file read, so it also works where the browser can't read stored files.
+ const src=bytesDataUrl(bytes,d.type);
+ if((d.type||'').startsWith('image/'))return openImageViewer(src,name);
+ const link=document.createElement('a');link.href=src;link.download=name;document.body.append(link);link.click();link.remove();
+}
 // Gives a picture its id right away (so the note's text never has to hold it) and saves it in the background:
 // on this device first, then shrunk if it wasn't already, then to the cloud. onSmall gets the shrunk version.
 function adoptImage(src,alreadyShrunk=false,onSmall){
@@ -547,7 +605,7 @@ async function loadCloudForUser(user){
     if(moveInlineImages()){state.savedAt=Date.now();markUnsynced(true);needsWrite=true}
     writeLocal();
     const uploaded=needsWrite?await saveToCloud():true;
-    flushPendingImages();
+    flushPendingImages();syncAttachments();
     if(seq!==authSeq)return;
     if(owner)try{localStorage.removeItem(KEY)}catch{}
     // A failed upload has already set the amber "Not synced" status; leave it showing.
@@ -1032,7 +1090,7 @@ function confirmDeleteLesson(){
     onConfirm:()=>{
       s.notes=s.notes.filter(x=>x.id!==n.id);
       if(state.selectedNote===n.id)state.selectedNote=s.notes[0]?.id||null;
-      (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
+      (n.attachments||[]).forEach(a=>deleteAttachmentCopies(a.id));
       save();renderNotebook();toast('Lesson deleted');
     }
   });
@@ -1096,7 +1154,7 @@ function generalModal(n=null){
   onCancel:()=>{generalModal(n);setTimeout(()=>$('#deleteGeneral')?.focus(),0)},
   onConfirm:()=>{
    state.notes.general=(state.notes.general||[]).filter(x=>x.id!==n.id);
-   (n.attachments||[]).forEach(a=>deleteFileBlob(a.id));
+   (n.attachments||[]).forEach(a=>deleteAttachmentCopies(a.id));
    save();
    currentGeneralNote=null;
    render();
@@ -1507,15 +1565,7 @@ if(tbBtn){
  return;
 }
 const attOpen=e.target.closest('[data-attach-open]');
-if(attOpen){
- getFileBlob(attOpen.dataset.attachOpen).then(rec=>{
-  if(!rec)return toast('File not found on this device.');
-  const url=URL.createObjectURL(rec.blob);
-  window.open(url,'_blank');
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
- });
- return;
-}
+if(attOpen){openAttachment(attOpen.dataset.attachOpen);return}
 const attRemove=e.target.closest('[data-attach-remove]');
 if(attRemove){
  const panel=attRemove.closest('.attach-panel');
@@ -1526,7 +1576,7 @@ if(attRemove){
   note.attachments=(note.attachments||[]).filter(a=>a.id!==id);
   note.updated=Date.now();
   save();
-  deleteFileBlob(id);
+  deleteAttachmentCopies(id);
   refreshAttachPanel(prefix,note);
  }
  return;
@@ -1558,6 +1608,9 @@ if(attachInput){
    note.updated=Date.now();
    save();
    refreshAttachPanel(prefix,note);
+   // Cloud copies go up from the files in hand; anything that fails is retried by syncAttachments.
+   Promise.all(metas.map((m,i)=>uploadAttachment(m,files[i]).catch(err=>{console.warn('Attachment upload failed:',m.name,err?.message);return false})))
+    .then(changed=>{if(changed.some(Boolean)){save();if(resolveNote(prefix)===note)refreshAttachPanel(prefix,note)}});
   })
   .catch(err=>toast(/timed out/.test(err?.message)?'The browser didn’t hand over the file — restart the browser and try again.':'Could not save the attached file on this device.',5000));
  }
