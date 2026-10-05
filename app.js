@@ -230,12 +230,85 @@ function tableAction(editor,action){
  const blank=()=>{const td=document.createElement('td');td.innerHTML='<br>';return td};
  const removeTable=()=>{const p=document.createElement('p');p.innerHTML='<br>';table.replaceWith(p);placeCaret(p)};
  if(action==='rowBelow'||action==='rowAbove'){const tr=document.createElement('tr');for(let i=0;i<row.cells.length;i++)tr.appendChild(blank());action==='rowBelow'?row.after(tr):row.before(tr);placeCaret(tr.cells[Math.min(col,tr.cells.length-1)])}
- else if(action==='colRight'){[...table.rows].forEach(r=>{const ref=r.cells[col],td=blank();ref?ref.after(td):r.appendChild(td)});placeCaret(row.cells[col+1])}
- else if(action==='colLeft'){[...table.rows].forEach(r=>{const ref=r.cells[col],td=blank();ref?ref.before(td):r.appendChild(td)});placeCaret(row.cells[col])}
+ // A resized table keeps its column widths in a <colgroup>: a new column takes half of the one beside it,
+ // a deleted column's width goes to its neighbour.
+ const cols=table.querySelector(':scope>colgroup')?.children;
+ const addCol=after=>{if(!cols?.[col])return;const ref=cols[col],c=document.createElement('col'),w=parseFloat(ref.style.width);if(w){ref.style.width=c.style.width=w/2+'%'}after?ref.after(c):ref.before(c)};
+ if(action==='colRight'){[...table.rows].forEach(r=>{const ref=r.cells[col],td=blank();ref?ref.after(td):r.appendChild(td)});addCol(true);placeCaret(row.cells[col+1])}
+ else if(action==='colLeft'){[...table.rows].forEach(r=>{const ref=r.cells[col],td=blank();ref?ref.before(td):r.appendChild(td)});addCol(false);placeCaret(row.cells[col])}
  else if(action==='delRow'){if(table.rows.length<=1)return removeTable();const next=row.nextElementSibling||row.previousElementSibling;row.remove();placeCaret(next.cells[Math.min(col,next.cells.length-1)])}
- else if(action==='delCol'){if(row.cells.length<=1)return removeTable();[...table.rows].forEach(r=>r.cells[col]?.remove());placeCaret(row.cells[Math.max(0,col-1)])}
+ else if(action==='delCol'){
+  if(row.cells.length<=1)return removeTable();[...table.rows].forEach(r=>r.cells[col]?.remove());
+  if(cols?.[col]){const gone=cols[col],next=gone.previousElementSibling||gone.nextElementSibling,w=parseFloat(gone.style.width),nw=parseFloat(next?.style.width);if(w&&nw)next.style.width=w+nw+'%';gone.remove()}
+  placeCaret(row.cells[Math.max(0,col-1)]);
+ }
  else if(action==='delTable')removeTable();
 }
+// Resize tables like a word processor: drag a column border, a row border, the table's right edge (last
+// column only) or the bottom-right corner (whole table). Widths are saved as percentages so the table fits
+// both the note popup and the notebook; row heights in px. Like row/column changes, Undo does not step back.
+const TBL_GRIP=5,TBL_MIN=24;
+let tblDrag=null;
+const widestRow=table=>[...table.rows].reduce((a,r)=>r.cells.length>a.cells.length?r:a);
+function tableZone(e){
+ const x=e.clientX,y=e.clientY,near=b=>x>=b.left-TBL_GRIP-3&&x<=b.right+TBL_GRIP+3&&y>=b.top-TBL_GRIP-3&&y<=b.bottom+TBL_GRIP+3;
+ // Just outside a table's edge the pointer is over the note itself, so look for a table close by.
+ let table=e.target.closest?.('.note-editor table');
+ if(!table){const ed=e.target.closest?.('.note-editor');table=ed&&[...ed.querySelectorAll('table')].find(t=>near(t.getBoundingClientRect()))}
+ if(!table||!table.isContentEditable||!table.rows.length)return null;
+ const box=table.getBoundingClientRect();
+ if(Math.abs(x-box.right)<=TBL_GRIP+3&&Math.abs(y-box.bottom)<=TBL_GRIP+3)return{table,type:'corner'};
+ const i=[...widestRow(table).cells].findIndex(c=>Math.abs(x-c.getBoundingClientRect().right)<=TBL_GRIP);
+ if(i>=0)return{table,type:'col',i};
+ const r=[...table.rows].findIndex(r=>Math.abs(y-r.getBoundingClientRect().bottom)<=TBL_GRIP);
+ return r>=0?{table,type:'row',i:r}:null;
+}
+function tableColEls(table){
+ const n=widestRow(table).cells.length;
+ let cg=table.querySelector(':scope>colgroup');if(!cg){cg=document.createElement('colgroup');table.prepend(cg)}
+ while(cg.children.length<n)cg.appendChild(document.createElement('col'));
+ while(cg.children.length>n)cg.lastElementChild.remove();
+ return [...cg.children];
+}
+function setTableWidths(d,w){
+ const W=w.reduce((a,b)=>a+b,0);
+ d.table.style.width=Math.min(100,W/d.avail*100).toFixed(2)+'%';
+ d.cols.forEach((c,k)=>c.style.width=(w[k]/W*100).toFixed(2)+'%');
+}
+document.addEventListener('pointermove',e=>{
+ if(tblDrag){
+  const d=tblDrag,dx=e.clientX-d.x,dy=e.clientY-d.y,w=[...d.px],i=d.i;
+  if(d.type==='row')d.rows[i].style.height=Math.max(TBL_MIN,d.h[i]+dy)+'px';
+  else if(d.type==='col'){
+   if(i<w.length-1){const t=w[i]+w[i+1];w[i]=Math.min(t-TBL_MIN,Math.max(TBL_MIN,w[i]+dx));w[i+1]=t-w[i]}
+   else w[i]=Math.max(TBL_MIN,Math.min(d.avail-(d.W-w[i]),w[i]+dx));
+   setTableWidths(d,w);
+  }else{
+   const W=Math.max(TBL_MIN*w.length,Math.min(d.avail,d.W+dx));setTableWidths(d,w.map(p=>p*W/d.W));
+   const k=Math.max(.2,(d.H+dy)/d.H);d.rows.forEach((r,j)=>r.style.height=Math.max(TBL_MIN,Math.round(d.h[j]*k))+'px');
+  }
+  return;
+ }
+ const ed=e.target.closest?.('.note-editor');if(!ed)return;
+ const t=tableZone(e)?.type||'';if((ed.dataset.tblResize||'')!==t){if(t)ed.dataset.tblResize=t;else delete ed.dataset.tblResize}
+});
+document.addEventListener('pointerdown',e=>{
+ if(e.button!==0)return;const z=tableZone(e);if(!z)return;
+ e.preventDefault();
+ const {table}=z,parent=table.parentElement,cs=getComputedStyle(parent);
+ const px=[...widestRow(table).cells].map(c=>c.getBoundingClientRect().width),rows=[...table.rows];
+ tblDrag={...z,x:e.clientX,y:e.clientY,cols:tableColEls(table),px,W:px.reduce((a,b)=>a+b,0),
+  avail:parent.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),
+  rows,h:rows.map(r=>r.getBoundingClientRect().height),H:table.getBoundingClientRect().height};
+ document.body.dataset.tblResizing=z.type;
+});
+// Stop the press from also starting a text selection while dragging.
+document.addEventListener('mousedown',e=>{if(tblDrag)e.preventDefault()},true);
+const endTableDrag=()=>{
+ if(!tblDrag)return;const ed=tblDrag.table.closest('.note-editor');tblDrag=null;delete document.body.dataset.tblResizing;
+ ed?.dispatchEvent(new Event('input',{bubbles:true}));
+};
+document.addEventListener('pointerup',endTableDrag);document.addEventListener('pointercancel',endTableDrag);
 // Tab / Shift+Tab move between table cells; Tab in the last cell adds a row.
 document.addEventListener('keydown',e=>{
  if(e.key!=='Tab'||e.altKey||e.ctrlKey||e.metaKey)return;

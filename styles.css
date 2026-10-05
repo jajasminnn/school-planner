@@ -369,6 +369,13 @@ body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel)
 .note-editor table{width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 12px}
 .note-editor td,.note-editor th{border:1px solid var(--line);padding:6px 9px;vertical-align:top;overflow-wrap:anywhere}
 .note-editor th{background:var(--panel2);font-weight:700}
+/* Table resizing (see app.js): cursors over the borders, and a corner handle while hovering the table */
+.note-editor[data-tbl-resize="col"],.note-editor[data-tbl-resize="col"] *,body[data-tbl-resizing="col"] *{cursor:col-resize!important}
+.note-editor[data-tbl-resize="row"],.note-editor[data-tbl-resize="row"] *,body[data-tbl-resizing="row"] *{cursor:row-resize!important}
+.note-editor[data-tbl-resize="corner"],.note-editor[data-tbl-resize="corner"] *,body[data-tbl-resizing="corner"] *{cursor:nwse-resize!important}
+body[data-tbl-resizing]{user-select:none}
+.note-editor[contenteditable="true"] tr:last-child>:last-child{position:relative}
+.note-editor[contenteditable="true"] table:hover tr:last-child>:last-child::after{content:'';position:absolute;right:-5px;bottom:-5px;width:8px;height:8px;border:1px solid var(--accent);border-radius:2px;background:var(--panel)}
 .note-editor td p:last-child,.note-editor th p:last-child{margin-bottom:0}
 
 /* Tasks table: a real, always-visible horizontal scrollbar on the table's own scroller (not the page),
