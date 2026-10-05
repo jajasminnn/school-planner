@@ -355,6 +355,11 @@ body.dark .note-row.pinned{background:linear-gradient(90deg,#2a2410,var(--panel)
 .editor-toolbar .tbl-grid button{width:20px;height:20px;padding:0;border-radius:4px;border:1px solid var(--line);background:var(--panel2)}
 .editor-toolbar .tbl-grid button.on{background:var(--accent-soft);border-color:var(--accent)}
 .tbl-size{font-size:11px;font-weight:700;color:var(--muted);text-align:center}
+.tbl-custom{display:flex;align-items:flex-end;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+.tbl-custom label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
+.tbl-custom input{width:58px;height:28px;padding:0 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--ink);font:inherit;font-size:13px}
+.tbl-custom>span{padding-bottom:6px;color:var(--muted);font-size:12px}
+.editor-toolbar .tbl-custom button{width:auto;height:28px;padding:0 10px;border-radius:8px;font-size:11px;font-weight:700;background:var(--accent-soft);color:var(--accent)}
 .tbl-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding-top:8px;border-top:1px solid var(--line)}
 .editor-toolbar .tbl-actions button{width:auto;height:28px;padding:0 8px;border-radius:8px;font-size:11px;font-weight:700;text-align:left;white-space:nowrap}
 .editor-toolbar .tbl-actions button:hover:not(:disabled){background:var(--panel2)}

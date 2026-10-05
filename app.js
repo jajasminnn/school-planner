@@ -171,24 +171,29 @@ const FILE_ICONS={image:'🖼️',pdf:'📕',doc:'📄',ppt:'📊',sheet:'📈',
 function stripHtml(html){const d=document.createElement('div');d.innerHTML=html||'';return d.textContent||''}function relTime(ts){if(!ts)return '';const s=Math.round((Date.now()-ts)/1000);if(s<45)return 'just now';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';if(s<604800)return Math.round(s/86400)+'d ago';return new Date(ts).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
 const tbIco=d=>`<svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 const ALIGNS=[['justifyLeft','Align left','M4 6h16M4 10h10M4 14h16M4 18h10'],['justifyCenter','Align center','M4 6h16M7 10h10M4 14h16M7 18h10'],['justifyRight','Align right','M4 6h16M10 10h10M4 14h16M10 18h10'],['justifyFull','Justify','M4 6h16M4 10h16M4 14h16M4 18h16']];
-const TABLE_GRID=6;
+const TABLE_GRID=6,TABLE_MAX_ROWS=50,TABLE_MAX_COLS=20;
 function alignMenuHtml(){return `<span class="tb-pop"><button type="button" data-menu-toggle title="Text alignment" aria-label="Text alignment" aria-haspopup="true" aria-expanded="false">${tbIco(ALIGNS[0][2])}</button><div class="tb-menu align-menu" role="group" aria-label="Text alignment" hidden>${ALIGNS.map(([cmd,label,d])=>`<button type="button" data-cmd="${cmd}" title="${label}" aria-label="${label}">${tbIco(d)}</button>`).join('')}</div></span>`}
-// Table: pick a size on the grid to insert one; the row/column buttons work on the table the caret is in.
+// Table: pick a size on the grid, or type the rows and columns, to insert one; the row/column buttons work on the table the caret is in.
 function tableMenuHtml(){
  let cells='';for(let r=1;r<=TABLE_GRID;r++)for(let c=1;c<=TABLE_GRID;c++)cells+=`<button type="button" data-cmd="insertTable" data-val="${r}x${c}" data-r="${r}" data-c="${c}" aria-label="Insert ${r} by ${c} table"></button>`;
  const act=(v,label,cls='')=>`<button type="button" class="${cls}" data-cmd="tableAction" data-val="${v}">${label}</button>`;
- return `<span class="tb-pop"><button type="button" data-menu-toggle title="Table" aria-label="Table" aria-haspopup="true" aria-expanded="false">${tbIco('M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10h18M3 15h18M9 4v16M15 4v16')}</button><div class="tb-menu table-menu" role="group" aria-label="Table" hidden><div class="tbl-grid">${cells}</div><div class="tbl-size">Insert table</div><div class="tbl-actions">${act('rowBelow','+ Row below')}${act('colRight','+ Column right')}${act('delRow','− Delete row')}${act('delCol','− Delete column')}${act('delTable','Delete table','tbl-del')}</div></div></span>`;
+ return `<span class="tb-pop"><button type="button" data-menu-toggle title="Table" aria-label="Table" aria-haspopup="true" aria-expanded="false">${tbIco('M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10h18M3 15h18M9 4v16M15 4v16')}</button><div class="tb-menu table-menu" role="group" aria-label="Table" hidden><div class="tbl-grid">${cells}</div><div class="tbl-size">Insert table</div><div class="tbl-custom"><label>Rows<input type="number" class="tbl-rows" min="1" max="${TABLE_MAX_ROWS}" value="3" inputmode="numeric"></label><span aria-hidden="true">×</span><label>Columns<input type="number" class="tbl-cols" min="1" max="${TABLE_MAX_COLS}" value="3" inputmode="numeric"></label><button type="button" data-cmd="insertTable" data-val="custom">Insert</button></div><div class="tbl-actions">${act('rowBelow','+ Row below')}${act('colRight','+ Column right')}${act('delRow','− Delete row')}${act('delCol','− Delete column')}${act('delTable','Delete table','tbl-del')}</div></div></span>`;
 }
 function editorToolbarHtml(idp){return `<div class="editor-toolbar" data-target="${idp}Body"><button type="button" data-cmd="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${tbIco('M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')}</button><button type="button" data-cmd="redo" title="Redo (Ctrl+Y)" aria-label="Redo">${tbIco('m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')}</button><span class="tb-sep"></span><button type="button" data-cmd="bold" title="Bold"><b>B</b></button><button type="button" data-cmd="italic" title="Italic"><i>I</i></button><button type="button" data-cmd="underline" title="Underline"><u>U</u></button><button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>${highlightMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="formatBlock" data-val="H2" data-block="h2" title="Heading" aria-pressed="false">H2</button><button type="button" data-cmd="formatBlock" data-val="H3" data-block="h3" title="Subheading" aria-pressed="false">H3</button><button type="button" data-cmd="formatBlock" data-val="DIV" data-block="normal" title="Normal text — back from a heading or quote" aria-label="Normal text" aria-pressed="false">T</button>${alignMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="insertUnorderedList" title="Bullet list">☰</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1.</button><button type="button" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Quote">❝</button>${tableMenuHtml()}<span class="tb-sep"></span><button type="button" data-cmd="createLink" title="Add link">🔗</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Tx</button></div>`}
 // Highlighter: light colours only, so dark text stays readable on them (in dark mode too, see styles.css).
 const HIGHLIGHTS=[['Yellow','#fff3a3'],['Green','#d4f5d0'],['Blue','#d6ebff'],['Pink','#ffd9e8'],['Orange','#ffe2c4'],['Purple','#e9dcff']];
 function highlightMenuHtml(){return `<span class="tb-sep"></span><span class="tb-pop"><button type="button" data-menu-toggle title="Highlight" aria-label="Highlight" aria-haspopup="true" aria-expanded="false"><span class="hl-icon">ab</span></button><div class="tb-menu hl-menu" role="group" aria-label="Highlight colours" hidden>${HIGHLIGHTS.map(([name,c])=>`<button type="button" class="hl-swatch" data-cmd="hiliteColor" data-val="${c}" style="background:${c}" title="${name}" aria-label="${name} highlight"></button>`).join('')}<button type="button" class="hl-swatch hl-none" data-cmd="hiliteColor" data-val="transparent" title="No highlight" aria-label="Remove highlight"></button></div></span>`}
+let tableCaret=null;
 function toggleToolbarMenu(btn,open){
  closeToolbarMenus();if(!open)return;
  const menu=btn.nextElementSibling;btn.setAttribute('aria-expanded','true');menu.hidden=false;
  // Row/column buttons only make sense with the caret inside a table.
  const acts=menu.querySelectorAll('[data-cmd="tableAction"]');
- if(acts.length){const ed=document.getElementById(btn.closest('.editor-toolbar').dataset.target);const inTable=!!(ed&&cellAtCaret(ed));acts.forEach(a=>a.disabled=!inTable)}
+ if(acts.length){
+  const ed=document.getElementById(btn.closest('.editor-toolbar').dataset.target);const inTable=!!(ed&&cellAtCaret(ed));acts.forEach(a=>a.disabled=!inTable);
+  // Typing in the Rows/Columns boxes takes the caret out of the note, so remember where it was.
+  const s=getSelection();tableCaret=ed&&s.rangeCount&&ed.contains(s.getRangeAt(0).startContainer)?s.getRangeAt(0).cloneRange():null;
+ }
 }
 // Table grid: light up the cells up to the hovered one, like a word processor's size picker.
 document.addEventListener('mouseover',e=>{
@@ -243,6 +248,8 @@ document.addEventListener('keydown',e=>{
 });
 function closeToolbarMenus(){document.querySelectorAll('.tb-menu:not([hidden])').forEach(m=>{m.hidden=true;m.previousElementSibling.setAttribute('aria-expanded','false')})}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.tb-menu:not([hidden])')){e.stopPropagation();closeToolbarMenus()}},true);
+// Enter in the table's Rows/Columns boxes inserts the table.
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.closest?.('.tbl-custom input')){e.preventDefault();e.target.closest('.tbl-custom').querySelector('button').click()}});
 const pdfButtonHtml=prefix=>`<button type="button" class="lesson-action lesson-pdf" data-note-pdf="${prefix}" title="Save as PDF" aria-label="Save as PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>PDF</button>`;
 // Save as PDF: print only this note (title, subject, date, text and pictures) from a hidden frame. The print
 // dialog's "Save as PDF" destination makes the file; the frame's title becomes the suggested file name.
@@ -1556,7 +1563,15 @@ if(tbBtn){
    document.execCommand('hiliteColor',false,tbBtn.dataset.val);
    document.execCommand('styleWithCSS',false,false);
   }
-  else if(cmd==='insertTable'){const [r,c]=tbBtn.dataset.val.split('x').map(Number);insertTable(editor,r,c)}
+  else if(cmd==='insertTable'){
+   let r,c;
+   if(tbBtn.dataset.val==='custom'){
+    const box=tbBtn.closest('.tbl-custom'),num=(sel,max)=>Math.min(max,Math.max(1,Math.round(+box.querySelector(sel).value)||1));
+    r=num('.tbl-rows',TABLE_MAX_ROWS);c=num('.tbl-cols',TABLE_MAX_COLS);
+    if(tableCaret&&editor.contains(tableCaret.startContainer)){const s=getSelection();s.removeAllRanges();s.addRange(tableCaret)}
+   }else[r,c]=tbBtn.dataset.val.split('x').map(Number);
+   tableCaret=null;insertTable(editor,r,c);
+  }
   else if(cmd==='tableAction')tableAction(editor,tbBtn.dataset.val);
   else document.execCommand(cmd,false,null);
   closeToolbarMenus();
