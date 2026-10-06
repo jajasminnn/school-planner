@@ -1322,6 +1322,19 @@ function syncDeckFromLesson(subjectId,lesson,html){
  return {deck,added:fresh.length};
 }
 function openDeck(id){studySession=null;$('#view-study').dataset.deck=id||'';if(state.view==='study')renderStudy();else setView('study')}
+// How to turn a lesson into a deck and which ways of writing notes become cards (matches cardsFromLesson).
+const studyGuideHtml=open=>`<details class="card study-guide" data-study-guide ${open?'open':''}><summary>📥 How to import a lesson from your notebooks</summary><div class="study-guide-body">
+ <ol class="study-guide-steps"><li>Go to <b>My Subjects</b>, open the subject’s notebook, then open (or write) the lesson.</li><li>Write the parts you want to study in one of the formats below.</li><li>Click <b>Flashcards</b> at the top of the lesson. A deck is made and opens here in <b>Study</b>.</li><li>Added more to the lesson later? Open its deck and click <b>↻ Update from lesson</b>. Only the new cards are added, and your progress is kept.</li></ol>
+ <h4>Formats that become cards</h4>
+ <div class="study-guide-grid">
+  <div><b>Term – meaning</b><p>One per line. Put a dash with a space on both sides, a colon, or an equals sign between them.</p><code>Photosynthesis – how plants make food from sunlight<br>Osmosis: water moving through a membrane<br>H2O = water</code><span>Front: the term · Back: the meaning</span></div>
+  <div><b>Bold term at the start</b><p>Make the term <b>bold</b> and write its meaning after it on the same line.</p><code><b>Mitochondria</b> is the powerhouse of the cell</code><span>Front: Mitochondria · Back: the powerhouse of the cell</span></div>
+  <div><b>Bold word in a sentence</b><p>Bold the key word in a full sentence to make a fill-in-the-blank card.</p><code>The capital of France is <b>Paris</b>.</code><span>Front: The capital of France is _____. · Back: Paris</span></div>
+  <div><b>Heading + bullet or numbered list</b><p>Put a list (2 or more items) under a heading, or under a line that ends with “:”.</p><code>Parts of a cell:<br>• Nucleus<br>• Cytoplasm<br>• Cell membrane</code><span>Front: Parts of a cell · Back: the whole list</span></div>
+  <div><b>Two-column table</b><p>Insert a table with 2 columns: the term on the left, the meaning on the right.</p><code>Nucleus | Holds the cell’s DNA<br>Ribosome | Makes proteins</code><span>One card per row</span></div>
+ </div>
+ <p class="study-guide-note"><b>Tips:</b> keep the term short (8 words or fewer) and don’t end it with a period. Lines that end with “?” aren’t turned into definitions. Pictures and attachments are skipped, and inside quote boxes only bold words are used. After importing you can still edit, delete or add cards yourself.</p>
+</div></details>`;
 const noCardsTip='Tip: make key terms <b>bold</b>, or write lines like “Term – meaning”, then update the deck.';
 
 // Quiz: up to 10 questions, weakest cards first. Wrong options come from the deck's other answers of the
@@ -1406,12 +1419,14 @@ function renderStudy(){
  const total=state.study.decks.length;
  const subjOpts=`<option value="">All subjects</option>${state.settings.subjects.map(s=>`<option value="${s.id}" ${subj===s.id?'selected':''}>${esc(subjectIcon(s)+' '+(s.name||'Unnamed subject'))}</option>`).join('')}`;
  let body;
- if(!total)body=`<div class="notes-empty study-empty"><div class="notes-empty-icon" aria-hidden="true">🎴</div><h3>No flashcards yet</h3><p>Open a lesson in <b>My Subjects</b> and click <b>Flashcards</b> to turn your notes into cards and a quiz.<br>Or start an empty deck and write your own cards.</p><div class="study-empty-actions"><button type="button" class="primary" data-go-subjects>Go to My Subjects</button><button type="button" class="ghost" data-new-deck>+ New deck</button></div></div>`;
+ if(!total)body=`<div class="notes-empty study-empty"><div class="notes-empty-icon" aria-hidden="true">🎴</div><h3>No flashcards yet</h3><p>Import a lesson from your notebooks (see the steps above), or start an empty deck and write your own cards.</p><div class="study-empty-actions"><button type="button" class="primary" data-go-subjects>Go to My Subjects</button><button type="button" class="ghost" data-new-deck>+ New deck</button></div></div>`;
  else if(!decks.length)body=`<div class="notes-empty"><div class="notes-empty-icon" aria-hidden="true">🔎</div><h3>No decks for this subject</h3><p>Pick another subject, or make flashcards from one of its lessons.</p></div>`;
  else body=`<div class="deck-grid notes-view">${decks.map(d=>{
   const s=state.settings.subjects.find(x=>x.id===d.subjectId),st=deckStats(d),pct=st.total?Math.round(st.mastered/st.total*100):0;
   return `<article class="deck-card" style="--subject-color:${subjectColor(d.subjectId)}"><button type="button" class="deck-open" data-open-deck="${d.id}" aria-label="Open deck ${esc(d.title)}"><span class="deck-subject"><span class="deck-emoji" aria-hidden="true">${s?subjectIcon(s):'🎴'}</span>${esc(s?.name||'No subject')}</span><b class="deck-title">${esc(d.title||'Untitled deck')}</b><span class="deck-meta">${st.total} card${st.total===1?'':'s'} · ${st.mastered} mastered${st.review?` · <em>${st.review} to review</em>`:''}</span><span class="deck-bar" role="img" aria-label="${pct}% mastered"><i style="width:${pct}%"></i></span></button><div class="deck-actions"><button type="button" class="primary small" data-study-cards="${d.id}" ${st.total?'':'disabled'}>Practice</button><button type="button" class="ghost small" data-study-quiz="${d.id}" ${st.total>1?'':'disabled'}>Quiz</button></div></article>`}).join('')}</div>`;
- root.innerHTML=`<div class="notes-top"><div class="notes-top-title"><h2>Your decks</h2><span class="pill">${total} deck${total===1?'':'s'}</span></div><div class="notes-controls">${total?`<select class="select" id="studySubject" aria-label="Show decks for">${subjOpts}</select>`:''}<button type="button" class="primary" data-new-deck>+ New deck</button></div></div>${body}`;
+ root.innerHTML=`<div class="notes-top"><div class="notes-top-title"><h2>Your decks</h2><span class="pill">${total} deck${total===1?'':'s'}</span></div><div class="notes-controls">${total?`<select class="select" id="studySubject" aria-label="Show decks for">${subjOpts}</select>`:''}<button type="button" class="primary" data-new-deck>+ New deck</button></div></div>${studyGuideHtml(root.dataset.help?root.dataset.help==='open':!total)}${body}`;
+ // Open at first while there are no decks; after that it stays the way the user left it.
+ root.querySelector('[data-study-guide]').addEventListener('toggle',e=>{root.dataset.help=e.target.open?'open':'closed'});
 }
 function renderDeck(root,d){
  const s=state.settings.subjects.find(x=>x.id===d.subjectId),st=deckStats(d),pct=st.total?Math.round(st.mastered/st.total*100):0,lesson=deckLesson(d);
