@@ -1569,10 +1569,12 @@ function openImageViewer(src,alt,returnFocus){
  document.body.appendChild(v);v.querySelector('.image-viewer-close').focus();
 }
 document.addEventListener('click',e=>{const img=e.target.closest('.note-editor img');if(img&&img.src)openImageViewer(img.src,img.alt,img.closest('.note-editor'))});
-// Up/down arrows for jumping to the start or end of a long lesson (scrolls the page) or general note (scrolls the popup).
+// One arrow that jumps to the end of a long lesson (scrolls the page) or general note (scrolls the popup) while you are
+// in its top half, and flips to jump back to the top once you are past the middle.
 (()=>{
  const jump=document.createElement('div');jump.className='note-jump';jump.hidden=true;
- jump.innerHTML='<button type="button" data-jump="up" title="Jump to the top of the note" aria-label="Jump to the top of the note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button><button type="button" data-jump="down" title="Jump to the end of the note" aria-label="Jump to the end of the note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
+ jump.innerHTML='<button type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
+ const btn=jump.firstChild;
  document.body.appendChild(jump);
  const target=()=>{
   const gn=document.getElementById('gnBody');if(gn)return{ed:gn,sc:gn.closest('.modal'),box:gn.closest('.modal')};
@@ -1585,18 +1587,18 @@ document.addEventListener('click',e=>{const img=e.target.closest('.note-editor i
   // Only worth showing once the note runs well past one screen.
   if(!t||!t.sc||t.sc.scrollHeight-t.sc.clientHeight<200){jump.hidden=true;return}
   const top=t.sc.scrollTop,max=t.sc.scrollHeight-t.sc.clientHeight;
-  jump.querySelector('[data-jump="up"]').disabled=top<40;
-  jump.querySelector('[data-jump="down"]').disabled=top>max-40;
+  const dir=top<max/2?'down':'up';
+  if(btn.dataset.jump!==dir){btn.dataset.jump=dir;btn.title=dir==='up'?'Jump to the top of the note':'Jump to the end of the note';btn.setAttribute('aria-label',btn.title)}
   if(t.box){const r=t.box.getBoundingClientRect();jump.style.right=Math.max(12,innerWidth-r.right+14)+'px';jump.style.bottom=Math.max(12,innerHeight-r.bottom+80)+'px';jump.classList.add('in-modal')}
   else{jump.style.right='';jump.style.bottom='';jump.classList.remove('in-modal')}
   jump.hidden=false;
  };
  const schedule=()=>{if(!queued){queued=true;requestAnimationFrame(update)}};
- jump.addEventListener('click',e=>{
-  const b=e.target.closest('[data-jump]'),t=target();if(!b||!t)return;
-  t.sc.scrollTo({top:b.dataset.jump==='up'?0:t.sc.scrollHeight,behavior:'smooth'});
+ btn.addEventListener('click',()=>{
+  const t=target();if(!t)return;
+  t.sc.scrollTo({top:btn.dataset.jump==='up'?0:t.sc.scrollHeight,behavior:'smooth'});
  });
- // Keep focus (and the caret) in the note when an arrow is clicked.
+ // Keep focus (and the caret) in the note when the arrow is clicked.
  jump.addEventListener('mousedown',e=>e.preventDefault());
  addEventListener('scroll',schedule,{capture:true,passive:true});
  addEventListener('resize',schedule);
